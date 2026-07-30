@@ -23,11 +23,22 @@ const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:4321";
 const isProd = process.env.NODE_ENV === "production";
 const webDist = isProd ? join(import.meta.dir!, "../../web/dist") : undefined;
 
-let fallbackHtml = "";
+const fallbacks = new Map<string, string>();
 if (isProd && webDist) {
   try {
-    fallbackHtml = readFileSync(join(webDist, "index.html"), "utf-8");
-    console.log(`serving static from ${webDist}`);
+    const pages = [
+      ["/", "index.html"],
+      ["/app", "app/index.html"],
+      ["/login", "login/index.html"],
+      ["/note", "note/_dummy/index.html"],
+      ["/s", "s/_dummy/index.html"],
+    ] as const;
+    for (const [key, file] of pages) {
+      try {
+        fallbacks.set(key, readFileSync(join(webDist, file), "utf-8"));
+      } catch {}
+    }
+    console.log(`serving static from ${webDist} (${fallbacks.size} pages)`);
   } catch {
     console.warn("web/dist not found — API only");
   }
@@ -372,15 +383,22 @@ const app = new Elysia()
       console.warn("s3 unavailable (attachments disabled until MinIO is up):", e);
     }
   })
-  // SPA fallback: serve index.html for non-API GET routes
+  // SPA fallback: serve correct dummy HTML for non-API GET routes
   .all("/*", ({ request, set }) => {
     if (request.method !== "GET" || request.url.includes("/api/")) {
       set.status = 404;
       return { error: "not found" };
     }
-    if (fallbackHtml) {
+    const url = new URL(request.url);
+    const path = url.pathname;
+    let html: string | undefined;
+    if (path.startsWith("/note/")) html = fallbacks.get("/note");
+    else if (path.startsWith("/s/")) html = fallbacks.get("/s");
+    else if (path === "/app" || path === "/login") html = fallbacks.get(path);
+    else html = fallbacks.get("/");
+    if (html) {
       set.headers["content-type"] = "text/html; charset=utf-8";
-      return fallbackHtml;
+      return html;
     }
     set.status = 404;
     return { error: "not found" };
