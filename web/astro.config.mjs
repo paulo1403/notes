@@ -1,7 +1,9 @@
+import tailwindcss from "@astrojs/tailwind";
 import { defineConfig } from "astro/config";
 
 export default defineConfig({
   output: "static",
+  integrations: [tailwindcss()],
   server: { port: 4321, host: true },
   vite: {
     server: {

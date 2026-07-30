@@ -9,6 +9,12 @@
     "preview": "astro preview --host 0.0.0.0 --port 3201"
   },
   "dependencies": {
-    "astro": "^5.12.0"
+    "@astrojs/tailwind": "5",
+    "astro": "^5.12.0",
+    "autoprefixer": "^10.5.4",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "3",
+    "tailwindcss-animate": "^1.0.7"
   }
 }
