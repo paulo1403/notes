@@ -16,17 +16,6 @@ function mdHtml(t: string) {
   return h;
 }
 
-// ── Icons (lucide) ──
-const ICONS = ["arrow-left","moon","sun","plus","menu","x","share","download","trash-2","search","chevron-down","chevron-right","file-text","tag","copy","lock","clock","eye","eye-off","bar-chart","refresh","folder"];
-function icon(name: string, size = 16) {
-  return `<i data-lucide="${name}" style="width:${size}px;height:${size}px;display:inline-flex;flex-shrink:0"></i>`;
-}
-function renderIcons() {
-  const map: Record<string, any> = {};
-  for (const k of ICONS) if (li[k as keyof typeof li]) map[k] = li[k as keyof typeof li];
-  createIcons({ icons: map, attrs: { "stroke-width": "2" } });
-}
-
 // ── Modal ──
 let modalResolve: ((v: string|null)=>void)|null = null;
 let modalActive = false;
