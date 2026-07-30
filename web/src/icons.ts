@@ -22,20 +22,21 @@ import eyeOff from "lucide/dist/esm/icons/eye-off";
 import chartBar from "lucide/dist/esm/icons/chart-bar";
 import refreshCw from "lucide/dist/esm/icons/refresh-cw";
 
-const icons = {
-  "arrow-left": arrowLeft,
-  folder, moon, sun, plus, menu, x, share, download,
-  "trash-2": trash2, search, "chevron-down": chevronDown, "chevron-right": chevronRight,
-  "file-text": fileText, tag, copy, lock, clock, eye, "eye-off": eyeOff,
-  "bar-chart": chartBar, "refresh": refreshCw,
-} as const;
+// createIcons lookup uses PascalCase keys (toPascalCase("moon") → "Moon")
+const icons: Record<string, any> = {
+  ArrowLeft: arrowLeft, Folder: folder, Moon: moon, Sun: sun,
+  Plus: plus, Menu: menu, X: x, Share: share, Download: download,
+  Trash2: trash2, Search: search, ChevronDown: chevronDown, ChevronRight: chevronRight,
+  FileText: fileText, Tag: tag, Copy: copy, Lock: lock, Clock: clock,
+  Eye: eye, EyeOff: eyeOff, BarChart: chartBar, RefreshCw: refreshCw,
+};
 
 export type IconName = keyof typeof icons;
 
-export function icon(name: IconName, size = 16) {
+export function icon(name: string, size = 16) {
   return `<i data-lucide="${name}" style="width:${size}px;height:${size}px;display:inline-flex;flex-shrink:0"></i>`;
 }
 
 export function renderIcons() {
-  createIcons({ icons: icons as any, attrs: { "stroke-width": "2" } });
+  createIcons({ icons, attrs: { "stroke-width": "2" } });
 }
