@@ -1,124 +1,63 @@
 ---
 name: Notes
-description: Daylight drafting-table UI for Markdown notes — write, share, attach.
+description: Dark writing studio for open-source Markdown notes — write, share, attach.
 colors:
-  ink: "#1a1f26"
-  ink-soft: "#3d4654"
-  muted: "#5c6672"
-  line: "#d5dbe3"
-  line-strong: "#b8c0cc"
-  paper: "#ffffff"
-  desk: "#e8ecf1"
-  desk-deep: "#dce2ea"
-  accent: "#0f5c4c"
-  accent-hover: "#0a463a"
-  accent-soft: "#e4f2ee"
-  danger: "#b42318"
-  danger-soft: "#fdecea"
-  focus: "#1d6fd8"
+  ink: "#dadce0"
+  ink-soft: "#9aa0a8"
+  muted: "#636b78"
+  line: "#2a2d35"
+  panel: "#1c1e24"
+  panel-deep: "#14161b"
+  paper: "#0e0f14"
+  accent: "#d08770"
+  accent-hover: "#dba48b"
+  accent-soft: "#2a1f1c"
+  danger: "#e06c75"
+  focus: "#7cb8e8"
+  light-ink: "#1c1e26"
+  light-paper: "#fafbfc"
+  light-panel: "#f0f1f4"
+  light-accent: "#ae6b50"
 typography:
   ui:
-    fontFamily: "\"Public Sans\", system-ui, sans-serif"
+    fontFamily: "Inter, system-ui, sans-serif"
     fontSize: "15px"
-    fontWeight: 500
-    lineHeight: 1.45
-  body:
-    fontFamily: "\"Source Serif 4\", Georgia, serif"
-    fontSize: "17px"
     fontWeight: 400
-    lineHeight: 1.65
+    lineHeight: 1.5
   display:
-    fontFamily: "\"Public Sans\", system-ui, sans-serif"
+    fontFamily: "Inter, system-ui, sans-serif"
     fontSize: "1.75rem"
     fontWeight: 650
-    lineHeight: 1.15
-    letterSpacing: "-0.02em"
+    letterSpacing: "-0.025em"
 rounded:
-  sm: "6px"
-  md: "10px"
-  lg: "14px"
+  sm: "4px"
+  md: "8px"
 spacing:
   xs: "4px"
   sm: "8px"
   md: "16px"
   lg: "24px"
-  xl: "40px"
-components:
-  button-primary:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.paper}"
-    rounded: "{rounded.md}"
-    padding: "10px 16px"
-  button-secondary:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.md}"
-    padding: "10px 16px"
-  input:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.md}"
-    padding: "10px 12px"
 ---
 
 ## Overview
 
-**Mode: Operate.** Daytime office/tablet writing desk.
+**Mode: Operate.** Dark writing studio inspired by Obsidian's compositional grammar — narrow sidebar rail, spacious dark canvas, warm-amber accent. Not a clone: open palette, lighter chrome, share-first.
 
-**World: daylight drafting table.** Cool stone desk chrome, pure paper writing surface, deep forest accent for primary actions only. The note surface is the product; chrome is quiet infrastructure.
+**World:** Dark studio (deep charcoal canvas, paper-black surface). Light toggle for daytime via CSS class swap (user-controlled, persisted in localStorage).
 
-**Thesis:** Refuse SaaS card grids and neon-on-void dashboards. One paper sheet, a thin rail of tools, list as stacked sheets — not metric tiles.
+## Key decisions
 
-## Colors
+- **Sidebar (280px)** as persistent navigation rail, not hamburger or card grid.
+- **Note list as flat file stack** — title + badge, no date clutter in list; date in editor status.
+- **Editor split** 50/50 at ≥800px, stacked below. Monospace in edit pane.
+- **Theme toggle ◐** in sidebar head, persisted.
+- **Save via Cmd+S**, status bar shows "Saved" / "Unsaved".
+- **Preview** is rendered locally (rough Markdown), no server round-trip.
+- **warm-amber accent** reserved for primary actions and active selection.
+- **Inter** throughout. Monospace only inside code blocks and editor textarea.
 
-- Desk (`#e8ecf1`) for page chrome; paper white for content.
-- Ink near-black; muted cool slate for secondary (tinted from ink, not pure gray-on-white failure).
-- Accent forest green reserved for primary CTA, selected state, share-active.
-- Danger red only for destructive actions.
-- Focus ring cobalt, 2px offset, never color-only.
+## What this is not
 
-## Typography
-
-- **Public Sans** for UI chrome (nav, buttons, labels, lists).
-- **Source Serif 4** for note body and public share reading.
-- Fixed rem scale; display ≤ ~1.75rem in app chrome.
-- Body measure ~65–72ch in reading views.
-
-## Layout
-
-- App shell: top bar + main column (max ~1080px) on tablet/desktop; full-bleed paper on phone.
-- Editor: split MD | preview ≥900px; stacked below.
-- List: full-width sheet rows, not equal card grids.
-- More space above headings than below.
-
-## Elevation & Depth
-
-- Paper sits 1 step above desk: soft offset shadow `0 1px 2px rgb(26 31 38 / 0.06), 0 8px 24px rgb(26 31 38 / 0.06)`.
-- No glow halos. Borders 1px line color.
-
-## Shapes
-
-- Controls `10px` radius; chips `999px`.
-- Inputs and buttons share the same radius family.
-
-## Components
-
-- Primary button: solid accent, white label, hover darkens accent.
-- Secondary: paper fill, line border, ink label.
-- Danger: text/outline only until confirm.
-- Focus-visible: 2px focus ring on all interactive controls.
-- Empty list: instructional copy + primary “New note”.
-- Share control shows visibility badge; copy link when LINK/PUBLIC.
-
-## Do's and Don'ts
-
-**Do**
-- Keep writing surface calm and high-contrast.
-- Prefer keyboard save (⌘/Ctrl+S) and visible status text.
-- Use serif only where the user is reading the note.
-
-**Don't**
-- Don't use icon+title+blurb card grids as page structure.
-- Don't costume the UI in monospace “hacker” chrome.
-- Don't put heavy accent on inactive list rows.
-- Don't use glassmorphism or gradient text.
+- Not a dashboard. No metric tiles, no cards, no progress indicators.
+- Not a dark-only app. Light theme exists and is intentional.
+- Not an Obsidian clone. Single-note focus, not graph/plugin ecosystem.
