@@ -83,7 +83,7 @@ const app = new Elysia()
     },
     {
       body: t.Object({
-        email: t.String({ format: "email" }),
+        email: t.String({ minLength: 1 }),
         password: t.String({ minLength: 1 }),
       }),
     },
