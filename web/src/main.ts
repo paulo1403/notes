@@ -1,10 +1,8 @@
 import "./style.css";
 
-// --- Helpers ---
 const ICONS: Record<string, string> = {
   folder:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>',
   moon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>',
-  sun:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
   menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16"/><path d="M4 6h16"/><path d="M4 18h16"/></svg>',
   x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
@@ -17,7 +15,7 @@ const ICONS: Record<string, string> = {
   "file-text":'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>',
 };
 
-function icon(name: string, size = 16) { return `<span class="lucide" style="width:${size}px;height:${size}px">${ICONS[name]||""}</span>`; }
+function icon(name: string, s = 16) { return `<span class="lucide" style="width:${s}px;height:${s}px">${ICONS[name]||""}</span>`; }
 function esc(s: unknown) { return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]); }
 function mdHtml(t: string) {
   return esc(t)
@@ -28,60 +26,67 @@ function mdHtml(t: string) {
 
 // --- Modal ---
 let modalResolve: ((v: string|null)=>void)|null = null;
+let modalActive = false;
 
-function modal(html: string): Promise<string|null> {
+function modalHTML(html: string): Promise<string|null> {
   return new Promise(resolve => {
-    modalResolve = resolve;
+    modalResolve = resolve; modalActive = true;
     document.getElementById("modal-content")!.innerHTML = html;
     document.getElementById("modal")!.classList.add("open");
   });
 }
 
-document.addEventListener("click", e => {
-  const t = (e.target as HTMLElement);
-  if (t.closest("#modal-cancel")) { document.getElementById("modal")!.classList.remove("open"); modalResolve?.(null); }
-  if (t.closest("#modal-ok")) {
-    const val = (document.getElementById("modal-input") as HTMLInputElement)?.value;
-    document.getElementById("modal")!.classList.remove("open");
-    modalResolve?.(val ?? "");
-  }
-});
-
-function showModal(title: string, opts?: { input?: string; placeholder?: string; okText?: string }): Promise<string|null> {
-  return modal(`
-    <div class="modal-card">
-      <h3>${esc(title)}</h3>
-      ${opts?.input !== undefined ? `<input id="modal-input" value="${esc(opts.input)}" placeholder="${esc(opts.placeholder||"")}" autofocus>` : ""}
-      <div class="modal-actions">
-        <button id="modal-cancel" class="ghost">Cancel</button>
-        <button id="modal-ok" class="primary">${esc(opts?.okText||"OK")}</button>
-      </div>
-    </div>`);
+function showInput(title: string, opts?: { value?: string; placeholder?: string }): Promise<string|null> {
+  return modalHTML(`<div class="modal-card"><h3>${esc(title)}</h3><input id="modal-input" value="${esc(opts?.value||"")}" placeholder="${esc(opts?.placeholder||"")}" autofocus><div class="modal-actions"><button id="modal-cancel" class="ghost">Cancel</button><button id="modal-ok" class="primary">OK</button></div></div>`);
 }
 
 function showConfirm(title: string): Promise<boolean> {
-  return modal(`<div class="modal-card"><h3>${esc(title)}</h3><div class="modal-actions"><button id="modal-cancel" class="ghost">Cancel</button><button id="modal-ok" class="danger">Delete</button></div></div>`)
-    .then(v => v !== null);
+  return modalHTML(`<div class="modal-card"><h3>${esc(title)}</h3><div class="modal-actions"><button id="modal-cancel" class="ghost">Cancel</button><button id="modal-ok" class="danger">Delete</button></div></div>`).then(v => v !== null);
 }
 
-function showAlert(msg: string): Promise<void> {
-  return modal(`<div class="modal-card"><p style="margin:0 0 1rem;color:var(--ink-soft)">${esc(msg)}</p><div class="modal-actions"><button id="modal-ok" class="primary">OK</button></div></div>`)
-    .then(() => {});
+function showMsg(msg: string): Promise<void> {
+  return modalHTML(`<div class="modal-card"><p style="margin:0 0 1rem;color:var(--ink-soft)">${esc(msg)}</p><div class="modal-actions"><button id="modal-ok" class="primary">OK</button></div></div>`).then(() => {});
 }
 
-// --- API ---
-let currentNoteId: string|null = null;
+document.addEventListener("click", e => {
+  if (!modalActive) return;
+  const t = (e.target as HTMLElement);
+  if (t.closest("#modal-cancel")) { closeModal(); modalResolve?.(null); }
+  if (t.closest("#modal-ok")) {
+    const val = (document.getElementById("modal-input") as HTMLInputElement)?.value;
+    closeModal();
+    modalResolve?.(val !== undefined ? val : "");
+  }
+});
+
+function closeModal() { document.getElementById("modal")!.classList.remove("open"); modalActive = false; }
+
+// --- Persistence ---
+let currentNoteId: string|null = localStorage.getItem("nid") || null;
 let noteData: any = null;
 let dirty = false;
 let searchQuery = "";
 let allNotes: any[] = [];
-let foldersList: {name:string;count:number}[] = [];
-let currentFolder = "";
+const LS_NID = "nid", LS_DRAFT = "ndraft_", LS_TITLE = "ntitle_";
 
+function persistNoteId(id: string|null) {
+  currentNoteId = id;
+  if (id) localStorage.setItem(LS_NID, id);
+  else localStorage.removeItem(LS_NID);
+}
+
+function persistDraft(id: string, title: string, body: string) {
+  if (title || body) { localStorage.setItem(LS_DRAFT + id, body); localStorage.setItem(LS_TITLE + id, title); }
+  else { localStorage.removeItem(LS_DRAFT + id); localStorage.removeItem(LS_TITLE + id); }
+}
+
+function clearDraft(id: string) { localStorage.removeItem(LS_DRAFT + id); localStorage.removeItem(LS_TITLE + id); }
+
+// --- API ---
 async function api(path: string, opts: RequestInit = {}) {
-  const headers: Record<string,string> = { ...opts.headers as any };
-  if (!headers["content-type"] && !(opts.body instanceof FormData)) headers["content-type"] = "application/json";
-  return fetch(path, { credentials: "include", ...opts, headers });
+  const h: Record<string,string> = { ...opts.headers as any };
+  if (!h["content-type"] && !(opts.body instanceof FormData)) h["content-type"] = "application/json";
+  return fetch(path, { credentials: "include", ...opts, headers: h });
 }
 
 async function login(email: string, password: string) {
@@ -93,43 +98,41 @@ async function loadData() {
   if (u.error) return false;
   const nr = await api(searchQuery ? `/api/notes?q=${encodeURIComponent(searchQuery)}` : "/api/notes");
   allNotes = (await nr.json()).notes || [];
-  const fr = await api("/api/folders");
-  foldersList = (await fr.json()).folders || [];
   return true;
 }
 
-async function createNote(title: string, folder?: string) {
-  const r = await api("/api/notes", { method:"POST", body:JSON.stringify({title,body:"",folder:folder||null}) });
-  return (await r.json()).note;
-}
-
-async function getNote(id: string) {
+async function fetchNote(id: string) {
   const r = await api(`/api/notes/${id}`);
   if (!r.ok) return null;
   return (await r.json()).note;
 }
 
-async function updateNote(id: string, data: any) {
+async function saveNote(id: string, data: any) {
   await api(`/api/notes/${id}`, { method:"PATCH", body:JSON.stringify(data) });
 }
 
-async function deleteNote(id: string) {
+async function removeNote(id: string) {
   await api(`/api/notes/${id}`, { method:"DELETE" });
 }
 
-async function shareNote(id: string, visibility: string, expiresIn = 0) {
-  const b: any = { visibility };
-  if (expiresIn > 0) b.expiresIn = expiresIn;
+async function newNote(title: string, folder?: string) {
+  const r = await api("/api/notes", { method:"POST", body:JSON.stringify({title, body:"", folder:folder||null}) });
+  return (await r.json()).note;
+}
+
+async function setShare(id: string, vis: string, exp = 0) {
+  const b: any = { visibility: vis };
+  if (exp > 0) b.expiresIn = exp;
   const r = await api(`/api/notes/${id}/share`, { method:"POST", body:JSON.stringify(b) });
   return (await r.json()).note;
 }
 
-async function uploadAttach(id: string, file: File) {
+async function uploadFile(id: string, file: File) {
   const fd = new FormData(); fd.append("file", file);
   return api(`/api/notes/${id}/attachments`, { method:"POST", body:fd });
 }
 
-async function attachUrl(id: string) {
+async function getAttachUrl(id: string) {
   const r = await api(`/api/attachments/${id}/url`);
   return r.ok ? (await r.json()).url : null;
 }
@@ -139,14 +142,14 @@ const $ = (s: string) => document.querySelector(s);
 const $$ = (s: string) => document.querySelectorAll(s);
 
 function bind(sel: string, ev: string, fn: (e: Event)=>void) {
-  $(sel)?.addEventListener(ev, fn);
+  const el = typeof sel === "string" ? $(sel) : sel;
+  el?.addEventListener(ev, fn);
 }
 
-function renderSidebar() {
+function refreshSidebar() {
   const nav = document.getElementById("sidebar-nav")!;
-  const q = searchQuery;
+  const q = searchQuery.toLowerCase();
   const notes = allNotes.filter(n => !q || n.title.toLowerCase().includes(q) || (n.body||"").toLowerCase().includes(q));
-
   const groups = new Map<string, typeof notes>();
   for (const n of notes) {
     const f = n.folder || "(no folder)";
@@ -155,11 +158,13 @@ function renderSidebar() {
   }
 
   nav.innerHTML = "";
+  const hasNote = !!currentNoteId;
   for (const [folder, items] of groups) {
     const h = document.createElement("div");
     h.className = "folder-header";
-    h.innerHTML = `${icon("chevron-down")}${esc(folder)} <span style="margin-left:auto;color:var(--muted);font-weight:400">${items.length}</span>`;
-    h.dataset.expanded = "1";
+    const defaultCollapsed = hasNote;
+    h.innerHTML = `${icon(defaultCollapsed ? "chevron-right" : "chevron-down")}${esc(folder)} <span style="margin-left:auto;color:var(--muted);font-weight:400">${items.length}</span>`;
+    h.dataset.expanded = defaultCollapsed ? "0" : "1";
     h.addEventListener("click", () => {
       const next = h.nextElementSibling as HTMLElement|null;
       if (!next) return;
@@ -171,6 +176,7 @@ function renderSidebar() {
     });
     nav.appendChild(h);
     const c = document.createElement("div");
+    c.style.display = defaultCollapsed ? "none" : "";
     for (const n of items) {
       const a = document.createElement("a");
       a.className = "nav-item" + (n.id === currentNoteId ? " active" : "");
@@ -184,12 +190,13 @@ function renderSidebar() {
 }
 
 async function openNote(id: string) {
-  const note = await getNote(id);
-  if (!note) return showAlert("Note not found");
-  currentNoteId = id;
+  const note = await fetchNote(id);
+  if (!note) { showMsg("Note not found"); return; }
+  persistNoteId(id);
   noteData = note;
   dirty = false;
-  renderSidebar();
+  clearDraft(id);
+  refreshSidebar();
   renderEditor();
   closeSidebar();
 }
@@ -197,14 +204,9 @@ async function openNote(id: string) {
 function renderEditor() {
   const main = document.getElementById("main-area")!;
   if (!currentNoteId || !noteData) {
-    main.innerHTML = `
-      <div class="empty-state">
-        <button class="ghost mobile-only" id="sb-open">${icon("menu",20)}</button>
-        <h2>Select a note</h2>
-        <p>Pick one from the sidebar or create a new one.</p>
-        <button class="primary" id="empty-new">${icon("plus")} New note</button>
-      </div>`;
-    bind("#empty-new", "click", () => doNew());
+    main.innerHTML = `<div class="empty-state"><button class="ghost mobile-only" id="sb-open">${icon("menu",20)}</button><h2>Select a note</h2><p>Pick one from the sidebar or create a new one.</p><button class="primary" id="empty-new">${icon("plus")} New note</button></div>`;
+    bind("#sb-open","click",() => openSidebar());
+    bind("#empty-new","click",() => newNoteAction());
     return;
   }
 
@@ -214,14 +216,19 @@ function renderEditor() {
     for (const a of n.attachments) {
       attachHtml += `<div class="attach-row"><span class="grow">${esc(a.filename)}</span><button class="attach-open" data-id="${a.id}">Open</button></div>`;
     }
-  } else {
-    attachHtml = '<span style="color:var(--muted);font-size:0.8125rem">No attachments.</span>';
-  }
+  } else attachHtml = '<span style="color:var(--muted);font-size:0.8125rem">No attachments.</span>';
+
+  // Restore draft if available
+  const draftBody = localStorage.getItem(LS_DRAFT + currentNoteId);
+  const draftTitle = localStorage.getItem(LS_TITLE + currentNoteId);
+  const bodyVal = draftBody !== null ? draftBody : n.body;
+  const titleVal = draftTitle !== null ? draftTitle : n.title;
+  if (draftBody !== null || draftTitle !== null) dirty = true;
 
   main.innerHTML = `
     <div class="editor-top">
       <button class="ghost mobile-only" id="sb-open">${icon("menu")}</button>
-      <span class="status" id="n-status">${esc(n.visibility)}${n.shareToken?` · s/${n.shareToken}`:""}</span>
+      <span class="status" id="n-status">${dirty ? "Unsaved" : esc(n.visibility) + (n.shareToken ? " · s/"+n.shareToken : "")}</span>
       <button class="ghost" id="n-folder" style="font-size:.8125rem;color:var(--muted)">${icon("folder")} <span id="n-folder-label">${esc(n.folder||"none")}</span></button>
       <button id="n-share">${icon("share")}</button>
       <button id="n-export">${icon("download")}</button>
@@ -229,13 +236,13 @@ function renderEditor() {
       <button class="danger" id="n-del">${icon("trash-2")}</button>
     </div>
     <div class="editor-scroll">
-      <input id="n-title" class="title-field" value="${esc(n.title)}" placeholder="Note title">
+      <input id="n-title" class="title-field" value="${esc(titleVal)}" placeholder="Note title">
       <div class="editor-split">
-        <div class="editor-pane"><textarea id="n-body" placeholder="Write in Markdown…">${esc(n.body)}</textarea></div>
-        <div class="preview-pane" id="n-preview"></div>
+        <div class="editor-pane"><textarea id="n-body" placeholder="Write in Markdown…">${esc(bodyVal)}</textarea></div>
+        <div class="preview-pane" id="preview"></div>
       </div>
       <section class="attach-area">
-        <div class="attach-head" id="attach-toggle" style="cursor:pointer">${icon("chevron-down",14)} <strong>Attachments</strong><span style="color:var(--muted);font-weight:400;font-size:.75rem">${n.attachments?.length||0} files</span></div>
+        <div class="attach-head" id="attach-toggle" style="cursor:pointer">${icon("chevron-right",14)} <strong>Attachments</strong><span style="color:var(--muted);font-weight:400;font-size:.75rem;margin-left:.25rem">${n.attachments?.length||0} files</span></div>
         <div id="attach-body" style="display:none">
           <div class="attach-head" style="margin-top:.5rem"><input type="file" id="n-file" style="flex:1;font-size:.8125rem"><button id="n-upload">Upload</button></div>
           <div id="n-files">${attachHtml}</div>
@@ -244,47 +251,47 @@ function renderEditor() {
     </div>`;
 
   renderPreview();
-  bind("#sb-open", "click", () => openSidebar());
-
-  // Attach open handlers
-  $$(".attach-open").forEach(el => {
-    el.addEventListener("click", async () => {
-      const id = (el as HTMLElement).dataset.id!;
-      const url = await attachUrl(id);
-      if (url) window.open(url, "_blank", "noopener");
-    });
-  });
-
-  bind("#n-upload", "click", async () => {
+  bind("#sb-open","click",() => openSidebar());
+  $$(".attach-open").forEach(el => el.addEventListener("click", async () => {
+    const url = await getAttachUrl((el as HTMLElement).dataset.id!);
+    if (url) window.open(url, "_blank", "noopener");
+  }));
+  bind("#n-upload","click", async () => {
     const file = ($("#n-file") as HTMLInputElement)?.files?.[0];
-    if (!file) return showAlert("Pick a file");
+    if (!file) { showMsg("Pick a file"); return; }
     setStatus("Uploading…");
-    const r = await uploadAttach(currentNoteId!, file);
+    const r = await uploadFile(currentNoteId!, file);
     setStatus(r.ok ? "Uploaded" : "Upload failed", r.ok ? "ok" : "err");
-    if (r.ok) { noteData = await getNote(currentNoteId!); renderEditor(); }
+    if (r.ok) { noteData = await fetchNote(currentNoteId!); renderEditor(); }
+  });
+  bind("#n-save","click", saveAction);
+  bind("#n-del","click", delAction);
+  bind("#n-export","click", () => window.open(`/api/notes/${currentNoteId}/export`));
+  bind("#n-share","click", shareAction);
+  bind("#n-folder","click", folderAction);
+  bind("#attach-toggle","click", () => {
+    const b = document.getElementById("attach-body"); const ic = document.querySelector("#attach-toggle .lucide");
+    if (b) { const v = b.style.display !== "none"; b.style.display = v ? "none" : ""; if (ic) ic.innerHTML = ICONS[v ? "chevron-right" : "chevron-down"]!; }
   });
 
-  bind("#n-save", "click", doSave);
-  bind("#n-del", "click", doDelete);
-  bind("#n-export", "click", () => window.open(`/api/notes/${currentNoteId}/export`));
-  bind("#n-share", "click", doShare);
-  bind("#n-folder", "click", doFolder);
-  bind("#attach-toggle", "click", () => {
-    const body = document.getElementById("attach-body");
-    const icon = document.querySelector("#attach-toggle .lucide");
-    if (body) {
-      const vis = body.style.display !== "none";
-      body.style.display = vis ? "none" : "";
-      if (icon) icon.innerHTML = ICONS[vis ? "chevron-right" : "chevron-down"]!;
-    }
-  });
-  bind("#n-title", "input", () => { if (!dirty) { dirty=true; setStatus("Unsaved"); } });
-  bind("#n-body", "input", () => { if (!dirty) { dirty=true; setStatus("Unsaved"); } renderPreview(); });
+  // Draft persistence on edit
+  const titleIn = $("#n-title") as HTMLInputElement;
+  const bodyIn = $("#n-body") as HTMLTextAreaElement;
+  let draftTimer: number;
+  function onEdit() {
+    if (!dirty) { dirty = true; setStatus("Unsaved"); }
+    clearTimeout(draftTimer);
+    draftTimer = window.setTimeout(() => {
+      persistDraft(currentNoteId!, titleIn.value, bodyIn.value);
+    }, 500);
+  }
+  titleIn?.addEventListener("input", onEdit);
+  bodyIn?.addEventListener("input", () => { onEdit(); renderPreview(); });
 }
 
 function renderPreview() {
   const body = ($("#n-body") as HTMLTextAreaElement)?.value || "";
-  const preview = document.getElementById("n-preview");
+  const preview = document.getElementById("preview");
   if (preview) preview.innerHTML = body.trim() ? mdHtml(body) : '<span style="color:var(--muted)">Preview</span>';
 }
 
@@ -293,85 +300,97 @@ function setStatus(t: string, k?: string) {
   if (s) { s.textContent = t; s.className = "status" + (k ? ` ${k}` : ""); }
 }
 
-async function doSave() {
+async function saveAction() {
   if (!currentNoteId) return;
-  setStatus("Saving…");
   const title = ($("#n-title") as HTMLInputElement)?.value || "";
   const body = ($("#n-body") as HTMLTextAreaElement)?.value || "";
-  await updateNote(currentNoteId, { title, body });
+  setStatus("Saving…");
+  await saveNote(currentNoteId, { title, body });
   dirty = false;
+  clearDraft(currentNoteId);
   setStatus("Saved", "ok");
-  noteData.title = title;
-  noteData.body = body;
-  renderSidebar();
+  noteData.title = title; noteData.body = body;
+  if (!searchQuery) refreshSidebar();
 }
 
-async function doDelete() {
+async function delAction() {
   if (!currentNoteId) return;
   const ok = await showConfirm("Delete permanently?");
   if (!ok) return;
-  await deleteNote(currentNoteId);
-  currentNoteId = null; noteData = null;
-  await refresh();
+  await removeNote(currentNoteId);
+  persistNoteId(null); noteData = null; clearDraft(currentNoteId);
+  await loadData(); refreshSidebar(); renderEditor();
 }
 
-async function doShare() {
+async function shareAction() {
   if (!noteData) return;
-  const mode = await showModal("Visibility", { input: noteData.visibility || "LINK", okText: "Set" });
+  const mode = await showInput("Visibility", { value: noteData.visibility || "LINK" });
   if (!mode) return;
   const v = mode.toUpperCase();
-  let expiresIn = 0;
-  if (v === "LINK") {
-    const e = await showModal("Expire in seconds (0 = never)", { input: "0", okText: "Set" });
-    expiresIn = parseInt(e || "0", 10);
-  }
-  noteData = await shareNote(currentNoteId!, v, expiresIn);
-  setStatus(noteData.visibility + (noteData.shareToken ? ` · s/${noteData.shareToken}` : ""), "ok");
+  let exp = 0;
+  if (v === "LINK") { const e = await showInput("Expire in seconds (0 = never)", { value: "0" }); exp = parseInt(e||"0", 10); }
+  noteData = await setShare(currentNoteId!, v, exp);
+  setStatus(noteData.visibility + (noteData.shareToken ? " · s/"+noteData.shareToken : ""), "ok");
   if (noteData.shareToken) {
     const url = `${location.origin}#/s/${noteData.shareToken}`;
     await navigator.clipboard.writeText(url).catch(() => {});
-    await showAlert(`Link copied:\n${url}`);
+    showMsg("Link copied:\n" + url);
   }
 }
 
-async function doFolder() {
+async function folderAction() {
   if (!noteData) return;
-  const f = await showModal("Folder name", { input: noteData.folder || "", placeholder: "folder name" });
+  const f = await showInput("Folder name", { value: noteData.folder || "", placeholder: "folder name" });
   if (f === null) return;
   const v = f.trim() || null;
-  await updateNote(currentNoteId!, { folder: v });
+  await saveNote(currentNoteId!, { folder: v });
   noteData.folder = v;
   document.getElementById("n-folder-label")!.textContent = v || "none";
-  await refresh();
+  await loadData(); refreshSidebar();
 }
 
-async function doNew() {
-  const t = await showModal("Title", { input: "Untitled", okText: "Create" });
+async function newNoteAction() {
+  const t = await showInput("Title", { value: "Untitled" });
   if (!t?.trim()) return;
-  const note = await createNote(t.trim());
-  if (note) { currentNoteId = note.id; noteData = note; await refresh(); }
+  const note = await newNote(t.trim());
+  if (note) { persistNoteId(note.id); noteData = note; await loadData(); refreshSidebar(); renderEditor(); }
 }
 
 // --- Sidebar ---
 function openSidebar() { document.getElementById("sidebar")!.classList.add("open"); document.getElementById("overlay")!.classList.add("open"); }
 function closeSidebar() { document.getElementById("sidebar")!.classList.remove("open"); document.getElementById("overlay")!.classList.remove("open"); }
 
-// --- App init ---
-async function refresh() {
-  if (!(await loadData())) { document.getElementById("app")!.innerHTML = `<div class="auth-wrap"><div class="auth-card"><h1>Sign in</h1><p class="sub">Session cookie.</p><form id="lf"><label><span>Email</span><input name="email" type="email" value="paulo@local"></label><label><span>Password</span><input name="password" type="password"></label><p id="lerr" style="color:var(--danger);display:none"></p><button type="submit">Continue</button></form></div></div>`;
-    document.getElementById("lf")?.addEventListener("submit", async (e) => {
+// --- Keyboard ---
+window.addEventListener("keydown", e => {
+  if ((e.metaKey||e.ctrlKey) && e.key === "s") { e.preventDefault(); saveAction(); }
+});
+
+window.addEventListener("beforeunload", e => {
+  if (dirty) { e.preventDefault(); e.returnValue = ""; }
+});
+
+// --- Init ---
+async function init() {
+  if (!(await loadData())) {
+    document.getElementById("app")!.innerHTML = `
+      <div class="auth-wrap"><div class="auth-card">
+        <h1>Sign in</h1><p class="sub">Session cookie.</p>
+        <form id="lf"><label><span>Email</span><input name="email" type="email" value="paulo@local"></label><label><span>Password</span><input name="password" type="password"></label>
+        <p id="lerr" style="color:var(--danger);display:none"></p><button type="submit">Continue</button></form>
+      </div></div>`;
+    document.getElementById("lf")?.addEventListener("submit", async e => {
       e.preventDefault();
       const fd = new FormData(e.target as HTMLFormElement);
       const r = await login(String(fd.get("email")), String(fd.get("password")));
       if (!r.ok) { const el = document.getElementById("lerr"); if (el) { el.textContent = "Wrong."; el.style.display = ""; } return; }
-      await refresh();
+      init();
     });
     return;
   }
-  renderApp();
+  renderShell();
 }
 
-function renderApp() {
+function renderShell() {
   document.getElementById("app")!.innerHTML = `
     <div class="sidebar-overlay" id="overlay"></div>
     <div class="app-layout">
@@ -392,35 +411,29 @@ function renderApp() {
     </div>
     <div id="modal" class="dialog-overlay"><div class="dialog-panel" id="modal-content"></div></div>`;
 
-  overlay?.addEventListener("click", closeSidebar);
-  bind("#sb-close", "click", closeSidebar);
-  bind("#theme-btn", "click", () => {
-    const isLight = document.documentElement.className === "light";
-    document.documentElement.className = isLight ? "" : "light";
-    localStorage.setItem("notes-theme", isLight ? "dark" : "light");
+  document.getElementById("overlay")?.addEventListener("click", closeSidebar);
+  bind("#sb-close","click", closeSidebar);
+  bind("#theme-btn","click", () => {
+    const l = document.documentElement.className === "light";
+    document.documentElement.className = l ? "" : "light";
+    localStorage.setItem("notes-theme", l ? "dark" : "light");
   });
-  bind("#new-btn", "click", doNew);
-  bind("#sq", "input", () => {
+  bind("#new-btn","click", newNoteAction);
+  bind("#sq","input", () => {
     searchQuery = ($("#sq") as HTMLInputElement).value;
-    renderSidebar();
+    refreshSidebar();
   });
 
-  renderSidebar();
-  if (currentNoteId) renderEditor();
-  else {
-    const main = document.getElementById("main-area")!;
-    main.innerHTML = `<div class="empty-state"><button class="ghost mobile-only" id="sb-open">${icon("menu",20)}</button><h2>Select a note</h2><p>Pick one from the sidebar or create a new one.</p><button class="primary" id="empty-new">${icon("plus")} New note</button></div>`;
-    bind("#sb-open", "click", () => openSidebar());
-    bind("#empty-new", "click", () => doNew());
-  }
+  refreshSidebar();
+
+  // Restore previous note or show empty state
+  if (currentNoteId) {
+    const note = await fetchNote(currentNoteId);
+    if (note) { noteData = note; renderEditor(); }
+    else { persistNoteId(null); renderEditor(); }
+  } else renderEditor();
 
   if (window.innerWidth <= 800) openSidebar();
 }
 
-// --- Keyboard ---
-window.addEventListener("keydown", (e) => {
-  if ((e.metaKey||e.ctrlKey) && e.key === "s") { e.preventDefault(); doSave(); }
-});
-
-// --- Start ---
-document.addEventListener("DOMContentLoaded", () => refresh());
+document.addEventListener("DOMContentLoaded", init);
