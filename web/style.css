@@ -1,0 +1,19 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+.markdown-body h1 { font-size: 1.5rem; font-weight: 700; margin: 1.25rem 0 0.4rem; line-height: 1.2; letter-spacing: -0.025em; }
+.markdown-body h2 { font-size: 1.2rem; font-weight: 600; margin: 1.1rem 0 0.35rem; line-height: 1.25; letter-spacing: -0.02em; }
+.markdown-body h3 { font-size: 1.05rem; font-weight: 600; margin: 0.85rem 0 0.3rem; }
+.markdown-body p { margin-bottom: 0.65rem; line-height: 1.65; }
+.markdown-body ul, .markdown-body ol { padding-left: 1.4rem; margin-bottom: 0.65rem; }
+.markdown-body li { margin-bottom: 0.2rem; }
+.markdown-body code { font-family: ui-monospace, monospace; font-size: 0.85em; background: oklch(0.25 0 0); padding: 0.1em 0.35em; border-radius: 0.3rem; }
+.markdown-body pre { background: oklch(0.2 0 0); padding: 0.75rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 0.75rem; }
+.markdown-body pre code { background: transparent; padding: 0; }
+.markdown-body blockquote { border-left: 3px solid oklch(0.6 0.1 30); padding-left: 0.75rem; opacity: 0.8; margin-bottom: 0.65rem; }
+.markdown-body a { color: oklch(0.6 0.1 30); text-decoration: underline; }
+.markdown-body img { max-width: 100%; border-radius: 0.5rem; }
+.markdown-body hr { margin: 1rem 0; border-color: oklch(0.3 0 0); }
+.markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 0.65rem; }
+.markdown-body th, .markdown-body td { border: 1px solid oklch(0.3 0 0); padding: 0.35rem 0.5rem; text-align: left; }
+.markdown-body th { background: oklch(0.25 0 0); font-weight: 600; }
