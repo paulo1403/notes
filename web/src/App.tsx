@@ -30,7 +30,7 @@ function App() {
   const insertMarkdown = useInsertMarkdown(textareaRef)
   const closeSidebar = useCallback(() => { if (drawerToggle.current) drawerToggle.current.checked = false }, [])
   const qc = useQueryClient()
-  const { view, setView, activeFolder, showShared } = useStore()
+  const { view, setView, activeFolder, showShared, searchQuery, setSearchQuery } = useStore()
 
   useEffect(() => {
     api.checkSession().then(u => { setUser(u); setAuth('app') }).catch(() => setAuth('landing'))
@@ -173,52 +173,75 @@ function App() {
                     <p className="text-sm">No notes yet.</p>
                   </div>
                 ) : showShared ? (
-                  <div className="overflow-y-auto min-h-0 flex-1">
-                    <table className="table table-pin-rows">
+                  <div className="overflow-y-auto min-h-0 flex-1 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-base-content/40">Shared notes with public links. Click a row to edit the note.</p>
+                      <input
+                        className="input input-xs w-48 h-8 rounded-xl bg-base-300/40 border-transparent focus:border-primary/30 focus:bg-base-200 transition-all placeholder:text-base-content/25 text-xs pl-7"
+                        placeholder="Search shared notes..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    <table className="table table-pin-rows table-xs">
                       <thead>
-                        <tr className="text-[11px] uppercase tracking-wider">
-                          <th>Note</th>
-                          <th>Link</th>
-                          <th>Views</th>
-                          <th>Expires</th>
-                          <th>Status</th>
+                        <tr className="text-[10px] uppercase tracking-wider text-base-content/40">
+                          <th className="font-medium">Note</th>
+                          <th className="font-medium">Copy Link</th>
+                          <th className="font-medium text-right">Visits</th>
+                          <th className="font-medium">Remaining</th>
+                          <th className="font-medium">Visibility</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {notes.filter(n => n.shareToken).map(n => {
-                          const url = `${location.origin}/api/s/${n.shareToken}`
-                          const expired = n.shareExpiresAt && new Date(n.shareExpiresAt) < new Date()
-                          const remaining = n.shareExpiresAt ? Math.round((new Date(n.shareExpiresAt).getTime() - Date.now()) / 3600000) : null
-                          return (
-                            <tr key={n.id} className="hover cursor-pointer" onClick={() => setSelectedNoteId(n.id)}>
-                              <td>
-                                <div className="font-medium text-sm truncate max-w-40">{n.title || 'Untitled'}</div>
-                                <div className="text-[10px] text-base-content/30">{new Date(n.updatedAt).toLocaleDateString()}</div>
-                              </td>
-                              <td>
-                                <button className="btn btn-ghost btn-xs gap-1" onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(url) }} title={url}>
-                                  <Copy className="size-3" />
-                                </button>
-                              </td>
-                              <td className="text-sm tabular-nums">
-                                {n.viewCount}
-                                {n.maxViews !== null && <span className="text-base-content/30"> / {n.maxViews}</span>}
-                              </td>
-                              <td className="text-sm">
-                                {n.shareExpiresAt ? (
-                                  expired
-                                    ? <span className="text-error">Expired</span>
-                                    : remaining !== null && remaining < 24
-                                      ? <span className="text-warning">{remaining}h</span>
-                                      : <span>{new Date(n.shareExpiresAt).toLocaleDateString()}</span>
-                                ) : <span className="text-base-content/30">—</span>}
-                              </td>
-                              <td>
-                                <span className={`badge badge-xs ${n.visibility === 'PUBLIC' ? 'badge-success' : 'badge-info'}`}>{n.visibility}</span>
-                              </td>
-                            </tr>
-                          )
-                        })}
+                        {notes.filter(n => n.shareToken && (!searchQuery || n.title.toLowerCase().includes(searchQuery.toLowerCase()))).length === 0 ? (
+                          <tr><td colSpan={5} className="text-center py-12 text-sm text-base-content/30">No shared notes match your search.</td></tr>
+                        ) : (
+                          notes.filter(n => n.shareToken && (!searchQuery || n.title.toLowerCase().includes(searchQuery.toLowerCase()))).map(n => {
+                            const url = `${location.origin}/api/s/${n.shareToken}`
+                            const expired = n.shareExpiresAt && new Date(n.shareExpiresAt) < new Date()
+                            const remaining = n.shareExpiresAt ? Math.round((new Date(n.shareExpiresAt).getTime() - Date.now()) / 3600000) : null
+                            return (
+                              <tr key={n.id} className="hover:bg-base-300/60 cursor-pointer transition-colors" onClick={() => setSelectedNoteId(n.id)}>
+                                <td>
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="size-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                      <FileText className="size-3.5 text-primary" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-medium truncate max-w-52 leading-tight">{n.title || 'Untitled'}</div>
+                                      <div className="text-[10px] text-base-content/30">Created {new Date(n.createdAt).toLocaleDateString()}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td>
+                                  <button className="btn btn-ghost btn-xs gap-1.5 text-base-content/50 hover:text-base-content" onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(url) }} title={url}>
+                                    <Copy className="size-3" />
+                                    <span className="text-[10px]">Copy</span>
+                                  </button>
+                                </td>
+                                <td className="text-right">
+                                  <div className="text-sm tabular-nums font-medium">{n.viewCount}</div>
+                                  {n.maxViews !== null && <div className="text-[10px] text-base-content/30">Limit {n.maxViews}</div>}
+                                </td>
+                                <td>
+                                  {n.shareExpiresAt ? (
+                                    expired
+                                      ? <span className="badge badge-error badge-xs gap-1"><span className="size-1.5 rounded-full bg-current" /> Expired</span>
+                                      : remaining !== null && remaining < 24
+                                        ? <span className="badge badge-warning badge-xs gap-1"><span className="size-1.5 rounded-full bg-current" /> {remaining}h left</span>
+                                        : <span className="text-xs text-base-content/50">{new Date(n.shareExpiresAt).toLocaleDateString()}</span>
+                                  ) : <span className="text-xs text-base-content/20">No expiry</span>}
+                                </td>
+                                <td>
+                                  <span className={`badge badge-xs ${n.visibility === 'PUBLIC' ? 'badge-success' : 'badge-ghost'}`}>
+                                    {n.visibility === 'PUBLIC' ? 'Public' : 'Link Only'}
+                                  </span>
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
                       </tbody>
                     </table>
                   </div>

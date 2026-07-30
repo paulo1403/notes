@@ -12,7 +12,7 @@ import { NoteListItem, FolderPill } from './NoteListItem'
 export function SidebarContent({ selectedNoteId, onSelectNote, user, onNavigate }: { selectedNoteId: string | null; onSelectNote: (id: string) => void; user: api.User | null; onNavigate: (page: 'settings' | 'admin') => void }) {
   const { data: folders } = useQuery({ queryKey: ['folders'], queryFn: api.getFolders })
   const { data: notes } = useQuery({ queryKey: ['notes'], queryFn: () => api.getNotes() })
-  const { activeFolder, setActiveFolder, showShared, setShowShared, searchQuery, setSearchQuery, theme, toggleTheme } = useStore()
+  const { activeFolder, setActiveFolder, showShared, setShowShared, setSelectedNoteId, searchQuery, setSearchQuery, theme, toggleTheme } = useStore()
   const qc = useQueryClient()
   const logout = useMutation({ mutationFn: api.logout, onSuccess: () => { qc.clear(); window.location.reload() } })
   const createNote = useMutation({
@@ -64,7 +64,7 @@ export function SidebarContent({ selectedNoteId, onSelectNote, user, onNavigate 
             label="All Notes"
             count={notes?.length}
             active={!activeFolder && !showShared}
-            onClick={() => { setActiveFolder(null); setShowShared(false) }}
+            onClick={() => { setActiveFolder(null); setShowShared(false); setSelectedNoteId(null) }}
           />
           {folders?.map(f => (
             <FolderPill
@@ -73,7 +73,7 @@ export function SidebarContent({ selectedNoteId, onSelectNote, user, onNavigate 
               label={f.name}
               count={f.count}
               active={activeFolder === f.name}
-              onClick={() => { setActiveFolder(f.name); setShowShared(false) }}
+              onClick={() => { setActiveFolder(f.name); setShowShared(false); setSelectedNoteId(null) }}
             />
           ))}
           <FolderPill
@@ -81,7 +81,7 @@ export function SidebarContent({ selectedNoteId, onSelectNote, user, onNavigate 
             label="Shared"
             count={sharedCount}
             active={showShared}
-            onClick={() => { setShowShared(true); setActiveFolder(null) }}
+            onClick={() => { setShowShared(true); setActiveFolder(null); setSelectedNoteId(null) }}
           />
         </div>
       </div>
