@@ -1,6 +1,7 @@
 import "./style.css";
 
 const ICONS: Record<string, string> = {
+  "arrow-left":'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>',
   folder:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>',
   moon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>',
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
@@ -234,7 +235,7 @@ async function loadBacklinks(id: string) {
 function renderEditor() {
   const main = document.getElementById("main-area")!;
   if (!currentNoteId || !noteData) {
-    main.innerHTML = `<div class="empty-state"><button class="ghost mobile-only" id="sb-open">${icon("menu",20)}</button><h2>Select a note</h2><p>Pick one from the sidebar or create a new one.</p><button class="primary" id="empty-new">${icon("plus")} New note</button></div>`;
+    main.innerHTML = `<div class="empty-state"><button class="ghost mobile-only" id="sb-open" aria-label="Open sidebar" title="Open sidebar">${icon("menu",20)}</button><h2>Select a note</h2><p>Pick one from the sidebar or create a new one.</p><button class="primary" id="empty-new" title="Create new note">${icon("plus")} New note</button></div>`;
     bind("#sb-open","click",() => openSidebar());
     bind("#empty-new","click",() => newNoteAction());
     return;
@@ -259,14 +260,14 @@ function renderEditor() {
 
   main.innerHTML = `
     <div class="editor-top">
-      <button class="ghost mobile-only" id="sb-open">${icon("menu")}</button>
+      <button class="ghost mobile-only" id="sb-open" aria-label="Open sidebar" title="Open sidebar">${icon("menu")}</button>
       <span class="status" id="n-status">${dirty ? "Unsaved" : esc(n.visibility) + (n.shareToken ? " · s/"+n.shareToken : "")}</span>
-      <button class="ghost" id="n-folder" style="font-size:.8125rem;color:var(--muted)">${icon("folder")} <span id="n-folder-label">${esc(n.folder||"none")}</span></button>
+      <button class="ghost" id="n-folder" style="font-size:.8125rem;color:var(--muted)" title="Change folder">${icon("folder")} <span id="n-folder-label">${esc(n.folder||"none")}</span></button>
       <button id="n-tags" class="ghost" style="font-size:.8125rem;color:var(--muted)" title="Edit tags">${icon("tag")} <span id="n-tag-label">${(n.tags||[]).length||"0"} tags</span></button>
-      <button id="n-share">${icon("share")}</button>
-      <button id="n-export">${icon("download")}</button>
-      <button class="primary" id="n-save">Save</button>
-      <button class="danger" id="n-del">${icon("trash-2")}</button>
+      <button id="n-share" title="Share note">${icon("share")}</button>
+      <button id="n-export" title="Export note">${icon("download")}</button>
+      <button class="primary" id="n-save" title="Save changes">Save</button>
+      <button class="danger" id="n-del" aria-label="Delete note" title="Delete note">${icon("trash-2")}</button>
     </div>
     <div class="editor-scroll">
       <input id="n-title" class="title-field" value="${esc(titleVal)}" placeholder="Note title">
@@ -469,10 +470,10 @@ async function renderShell() {
     <div class="app-layout">
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-head">
-          <button class="ghost mobile-only" id="sb-close">${icon("x")}</button>
+          <button class="ghost mobile-only" id="sb-close" aria-label="Close sidebar" title="Close sidebar">${icon("x")}</button>
           <h1>Notes</h1>
-          <button class="ghost" id="theme-btn">${icon("moon")}</button>
-          <button id="new-btn">${icon("plus")}</button>
+          <button class="ghost" id="theme-btn" aria-label="Toggle theme" title="Toggle theme">${icon("moon")}</button>
+          <button id="new-btn" aria-label="New note" title="New note">${icon("plus")}</button>
         </div>
         <div class="sidebar-search" style="display:flex;align-items:center;gap:.35rem;padding:.5rem .6rem;border-bottom:1px solid var(--line)">
           ${icon("search",14)}
