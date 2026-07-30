@@ -1,108 +1,105 @@
 ---
 import Base from "../layouts/Base.astro";
 ---
-<Base title="Your notes · Notes">
-  <header class="topbar">
-    <div class="brand grow">
-      <h1>Notes</h1>
-      <p id="who">Checking session…</p>
-    </div>
-    <input id="q" class="search" type="search" placeholder="Search notes" aria-label="Search notes" />
-    <button id="new" class="primary" type="button">New note</button>
-    <button id="logout" class="ghost" type="button">Sign out</button>
-  </header>
-
-  <section class="paper" aria-live="polite">
-    <div id="list" class="sheet-list"></div>
-    <div id="empty" class="empty" hidden>
-      <h2>No notes yet</h2>
-      <p>Start a sheet. Write Markdown. Share a link when you’re ready.</p>
-      <button id="empty-new" class="primary" type="button">Create first note</button>
-    </div>
-  </section>
-
+<Base title="Notes">
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-head">
+        <h1>Notes</h1>
+        <button id="theme-btn" title="Toggle theme" style="font-size:0.9rem;">◐</button>
+        <button id="new">+</button>
+      </div>
+      <div class="sidebar-search">
+        <input id="q" type="search" placeholder="Search" aria-label="Search" />
+      </div>
+      <nav class="sidebar-nav" id="list" role="listbox" aria-label="Notes">
+        <div class="empty-state" style="justify-content:start;padding:1rem 0.75rem;" hidden id="empty">
+          <p style="margin:0;font-size:0.8125rem;">No notes yet.</p>
+        </div>
+      </nav>
+    </aside>
+    <main class="main-area">
+      <div class="empty-state" id="main-empty">
+        <h2>Select a note</h2>
+        <p>Pick one from the sidebar or create a new one.</p>
+      </div>
+    </main>
+  </div>
   <script>
-    const who = document.getElementById("who")!;
-    const list = document.getElementById("list")!;
-    const empty = document.getElementById("empty")!;
-    const q = document.getElementById("q") as HTMLInputElement;
+    const list = document.getElementById("list");
+    const empty = document.getElementById("empty");
+    const mainEmpty = document.getElementById("main-empty");
+    const q = document.getElementById("q");
+    const themeBtn = document.getElementById("theme-btn");
 
-    function escapeHtml(s: string) {
-      return s.replace(/[&<>"']/g, (c) =>
-        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
-      );
+    function theme() {
+      const isLight = document.documentElement.className === "light";
+      document.documentElement.className = isLight ? "" : "light";
+      localStorage.setItem("notes-theme", isLight ? "dark" : "light");
+    }
+    themeBtn.addEventListener("click", theme);
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
     }
 
     async function requireAuth() {
       const res = await fetch("/api/auth/me", { credentials: "include" });
-      if (!res.ok) {
-        location.href = "/login";
-        return null;
-      }
-      const data = await res.json();
-      who.textContent = data.user.name || data.user.email;
-      return data.user;
+      if (!res.ok) location.href = "/login";
+      return (await res.json()).user;
     }
 
+    let notes = [];
+
     async function loadNotes() {
-      const url = q.value.trim()
-        ? `/api/notes?q=${encodeURIComponent(q.value.trim())}`
-        : "/api/notes";
+      const url = q.value.trim() ? `/api/notes?q=${encodeURIComponent(q.value.trim())}` : "/api/notes";
       const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) {
-        location.href = "/login";
+      if (!res.ok) return location.href = "/login";
+      const data = await res.json();
+      notes = data.notes;
+      list.innerHTML = "";
+      if (!notes.length) {
+        empty.hidden = false;
         return;
       }
-      const data = await res.json();
-      list.innerHTML = "";
-      const has = data.notes.length > 0;
-      empty.hidden = has;
-      list.hidden = !has;
-      for (const n of data.notes) {
+      empty.hidden = true;
+      for (const n of notes) {
         const a = document.createElement("a");
-        a.className = "sheet";
+        a.className = "nav-item";
         a.href = `/note/${n.id}`;
+        a.setAttribute("role", "option");
         const vis = String(n.visibility).toLowerCase();
-        a.innerHTML = `
-          <div class="row wrap">
-            <span class="sheet-title grow">${escapeHtml(n.title)}</span>
-            <span class="badge ${vis}">${escapeHtml(n.visibility)}</span>
-          </div>
-          <div class="sheet-meta">
-            <span>Updated ${new Date(n.updatedAt).toLocaleString()}</span>
-          </div>`;
+        a.innerHTML = `<span class="grow">${escapeHtml(n.title)}</span>${n.visibility !== "PRIVATE" ? `<span class="badge ${vis}">${escapeHtml(n.visibility)}</span>` : ""}`;
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          loadNote(n.id);
+        });
         list.appendChild(a);
       }
     }
 
-    async function createNote() {
-      const title = prompt("Title", "Untitled");
-      if (!title?.trim()) return;
+    function loadNote(id) {
+      location.href = `/note/${id}`;
+    }
+
+    document.getElementById("new").addEventListener("click", async () => {
+      const t = prompt("Title", "Untitled");
+      if (!t?.trim()) return;
       const res = await fetch("/api/notes", {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title: title.trim(), body: "" }),
+        body: JSON.stringify({ title: t.trim(), body: "" }),
       });
-      if (!res.ok) {
-        alert("Could not create note.");
-        return;
-      }
+      if (!res.ok) return alert("Create failed");
       const data = await res.json();
       location.href = `/note/${data.note.id}`;
-    }
-
-    document.getElementById("new")!.addEventListener("click", createNote);
-    document.getElementById("empty-new")!.addEventListener("click", createNote);
-    document.getElementById("logout")!.addEventListener("click", async () => {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-      location.href = "/login";
     });
 
-    let t: number | undefined;
+    let timer;
     q.addEventListener("input", () => {
-      clearTimeout(t);
-      t = window.setTimeout(loadNotes, 180);
+      clearTimeout(timer);
+      timer = setTimeout(loadNotes, 150);
     });
 
     await requireAuth();

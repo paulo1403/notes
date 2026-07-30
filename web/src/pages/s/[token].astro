@@ -6,28 +6,25 @@ export async function getStaticPaths() {
 const { token } = Astro.params;
 ---
 <Base title="Shared note · Notes">
-  <main class="share-read">
-    <p class="kicker">Shared note</p>
-    <h1 id="title">Loading…</h1>
-    <article id="body" class="paper paper-pad share-body">…</article>
+  <main class="share-wrap">
+    <p class="label">Shared note</p>
+    <h1 id="title">…</h1>
+    <article id="body" class="share-body">Loading…</article>
   </main>
   <script define:vars={{ token }}>
-    const title = document.getElementById("title");
-    const body = document.getElementById("body");
+    const t = document.getElementById("title");
+    const b = document.getElementById("body");
     try {
       const res = await fetch(`/api/s/${token}`);
       if (!res.ok) {
-        title.textContent = "Link unavailable";
-        body.textContent = "This share link is invalid or was revoked.";
+        t.textContent = "Not found";
+        b.innerHTML = "<p style='color:var(--muted);'>This link is invalid or revoked.</p>";
       } else {
-        const data = await res.json();
-        title.textContent = data.note.title;
-        body.innerHTML = data.note.html;
-        document.title = `${data.note.title} · Notes`;
+        const d = await res.json();
+        t.textContent = d.note.title;
+        b.innerHTML = d.note.html;
+        document.title = `${d.note.title} · Notes`;
       }
-    } catch {
-      title.textContent = "Could not load";
-      body.textContent = "Network error.";
-    }
+    } catch { t.textContent = "Error"; }
   </script>
 </Base>
