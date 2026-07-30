@@ -298,12 +298,20 @@ const app = new Elysia()
       }),
     },
   )
-  .get("/api/notes/:id/export", async ({ user, set, params }) => {
+  .get("/api/notes/:id/export", async ({ user, set, params, query }) => {
     if (!user) { set.status = 401; return { error: "unauthorized" }; }
     const note = await db.note.findFirst({
       where: { id: params.id, ownerId: user.id },
     });
     if (!note) { set.status = 404; return { error: "not found" }; }
+    const format = query.format || "md";
+    if (format === "html") {
+      const html = await marked.parse(note.body, { async: true });
+      const doc = `<!doctype html><html lang="en"><head><meta charset="UTF-8"><title>${note.title}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{max-width:720px;margin:0 auto;padding:2rem 1.5rem;font-family:system-ui,sans-serif;line-height:1.7;color:#1c1e26}img{max-width:100%}pre{background:#f0f1f4;padding:.75rem;border-radius:8px;overflow:auto}</style></head><body><h1>${note.title}</h1>${html}</body></html>`;
+      set.headers["content-type"] = "text/html; charset=utf-8";
+      set.headers["content-disposition"] = `attachment; filename="${note.slug}.html"`;
+      return doc;
+    }
     const filename = `${note.slug}.md`;
     set.headers["content-type"] = "text/markdown; charset=utf-8";
     set.headers["content-disposition"] = `attachment; filename="${filename}"`;

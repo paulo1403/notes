@@ -244,7 +244,9 @@ function renderEditor() {
   let attachHtml = "";
   if (n.attachments?.length) {
     for (const a of n.attachments) {
-      attachHtml += `<div class="attach-row"><span class="grow">${esc(a.filename)}</span><button class="attach-open" data-id="${a.id}">Open</button></div>`;
+      const isImg = a.mimeType?.startsWith("image/");
+      const imgSnippet = isImg ? `<img data-attach-id="${a.id}" loading="lazy" style="max-width:60px;max-height:60px;border-radius:4px;object-fit:cover;flex-shrink:0;background:var(--panel)">` : "";
+      attachHtml += `<div class="attach-row">${imgSnippet}<span class="grow">${esc(a.filename)}</span><button class="attach-open" data-id="${a.id}">${isImg ? "View" : "Open"}</button></div>`;
     }
   } else attachHtml = '<span style="color:var(--muted);font-size:0.8125rem">No attachments.</span>';
 
@@ -292,12 +294,41 @@ function renderEditor() {
     if (!file) { showMsg("Pick a file"); return; }
     setStatus("Uploading…");
     const r = await uploadFile(currentNoteId!, file);
-    setStatus(r.ok ? "Uploaded" : "Upload failed", r.ok ? "ok" : "err");
-    if (r.ok) { noteData = await fetchNote(currentNoteId!); renderEditor(); }
+    if (!r.ok) { setStatus("Upload failed", "err"); return; }
+    setStatus("Uploaded", "ok");
+    const updated = await fetchNote(currentNoteId!);
+    if (updated) { noteData = updated; renderEditor(); }
+    // Insert image markdown at cursor for images
+    if (file.type.startsWith("image/") && updated) {
+      const lastAttach = updated.attachments?.[updated.attachments.length - 1];
+      if (lastAttach) {
+        const fetchUrl = await getAttachUrl(lastAttach.id);
+        if (fetchUrl) {
+          const bodyEl = document.getElementById("n-body") as HTMLTextAreaElement;
+          if (bodyEl) {
+            const imgTag = `![${file.name}](${fetchUrl})`;
+            const start = bodyEl.selectionStart;
+            bodyEl.value = bodyEl.value.slice(0, start) + imgTag + bodyEl.value.slice(bodyEl.selectionEnd);
+            bodyEl.selectionStart = bodyEl.selectionEnd = start + imgTag.length;
+            bodyEl.dispatchEvent(new Event("input"));
+          }
+        }
+      }
+    }
+  });
+  // Load image thumbnails after render
+  document.querySelectorAll("[data-attach-id]").forEach(el => {
+    const id = (el as HTMLElement).dataset.attachId!;
+    getAttachUrl(id).then(url => { if (url) (el as HTMLImageElement).src = url; });
   });
   bind("#n-save","click", saveAction);
   bind("#n-del","click", delAction);
-  bind("#n-export","click", () => window.open(`/api/notes/${currentNoteId}/export`));
+  bind("#n-export","click", async () => {
+    if (!currentNoteId) return;
+    const fmt = await showInput("Export format", { value: "md", placeholder: "md or html" });
+    if (!fmt) return;
+    window.open(`/api/notes/${currentNoteId}/export?format=${fmt.trim()}`, "_blank");
+  });
   bind("#n-share","click", shareAction);
   bind("#n-folder","click", folderAction);
   bind("#n-tags","click", tagsAction);
