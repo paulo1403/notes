@@ -71,7 +71,13 @@ textarea{font-family:var(--font-mono);font-size:.875rem;line-height:1.6;resize:v
 .attach-row button{padding:.15rem .4rem;font-size:.75rem;border-radius:var(--radius-sm)}
 .dialog-overlay{display:none;position:fixed;inset:0;background:#00000072;z-index:100;align-items:center;justify-content:center}
 .dialog-overlay.open{display:flex}
-.dialog-panel{background:var(--panel-deep);border:1px solid var(--line);border-radius:var(--radius);max-width:90vw;max-height:60vh;overflow-y:auto}
+.dialog-panel{background:var(--panel-deep);border:1px solid var(--line);border-radius:var(--radius);max-width:90vw;overflow:hidden}
+.modal-card{padding:1.25rem;min-width:300px}
+.modal-card h3{margin:0 0 .75rem;font-weight:600;font-size:1rem}
+.modal-card input{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm);padding:.5rem .65rem;width:100%;margin-bottom:.75rem}
+.modal-card input:focus-visible{border-color:var(--accent)}
+.modal-actions{display:flex;gap:.5rem;justify-content:flex-end}
+.modal-actions button{padding:.4rem .7rem;font-size:.875rem}
 .auth-wrap{display:flex;align-items:center;justify-content:center;min-height:100dvh;padding:1.5rem}
 .auth-card{width:100%;max-width:380px}
 .auth-card h1{margin:0 0 .35rem;font-size:1.3rem;font-weight:600}
@@ -100,5 +106,6 @@ textarea{font-family:var(--font-mono);font-size:.875rem;line-height:1.6;resize:v
   .editor-split{grid-template-columns:1fr}
   .editor-scroll{padding:.75rem}
   .title-field{font-size:1.2rem}
-  .mobile-hide{display:none!important}
+  .mobile-only{display:flex!important}
 }
+@media(min-width:801px){.mobile-only{display:none!important}}
