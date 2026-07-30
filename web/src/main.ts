@@ -13,15 +13,24 @@ const ICONS: Record<string, string> = {
   "chevron-down":'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>',
   "chevron-right":'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>',
   "file-text":'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>',
+  tag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>',
 };
 
 function icon(name: string, s = 16) { return `<span class="lucide" style="width:${s}px;height:${s}px">${ICONS[name]||""}</span>`; }
 function esc(s: unknown) { return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]); }
 function mdHtml(t: string) {
-  return esc(t)
+  let h = esc(t)
     .replace(/^### (.+)$/gm,"<h3>$1</h3>").replace(/^## (.+)$/gm,"<h2>$1</h2>").replace(/^# (.+)$/gm,"<h1>$1</h1>")
     .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\*(.+?)\*/g,"<em>$1</em>").replace(/`([^`]+)`/g,"<code>$1</code>")
     .replace(/^- (.+)$/gm,"<li>$1</li>").replace(/\n\n/g,"</p><p>").replace(/^([^<].*)$/gm,m=>m.startsWith("<")?m:`<p>${m}</p>`);
+  // [[wiki links]] → clickable links (search by title)
+  h = h.replace(/\[\[([^\]]+)\]\]/g, (_, title: string) => {
+    const slug = title.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    const match = allNotes.find(n => n.title.toLowerCase() === title.trim().toLowerCase() || n.slug === slug);
+    if (match) return `<a href="#/note/${match.id}" class="wikilink">${esc(title.trim())}</a>`;
+    return `<span class="wikilink broken" title="Note not found">${esc(title.trim())}</span>`;
+  });
+  return h;
 }
 
 // --- Modal ---
@@ -198,7 +207,28 @@ async function openNote(id: string) {
   clearDraft(id);
   refreshSidebar();
   renderEditor();
+  loadBacklinks(id);
   closeSidebar();
+}
+
+async function loadBacklinks(id: string) {
+  const panel = document.getElementById("backlinks-panel");
+  if (!panel) return;
+  try {
+    const r = await api(`/api/notes/${id}/backlinks`);
+    if (!r.ok) { panel.style.display = "none"; return; }
+    const d = await r.json();
+    const bl = d.backlinks || [];
+    if (!bl.length) { panel.style.display = "none"; return; }
+    panel.style.display = "";
+    panel.innerHTML = `<div style="font-size:.675rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.35rem">Backlinks (${bl.length})</div>` +
+      bl.map((n: any) => `<a class="nav-item" data-id="${n.id}" style="margin:0;padding:.3rem .5rem;font-size:.8125rem">${icon("file-text",12)}<span style="flex:1">${esc(n.title)}</span></a>`).join("");
+    panel.querySelectorAll(".nav-item").forEach(el => el.addEventListener("click", (e: Event) => {
+      e.preventDefault();
+      const id = (el as HTMLElement).dataset.id;
+      if (id) openNote(id);
+    }));
+  } catch { panel.style.display = "none"; }
 }
 
 function renderEditor() {
@@ -230,6 +260,7 @@ function renderEditor() {
       <button class="ghost mobile-only" id="sb-open">${icon("menu")}</button>
       <span class="status" id="n-status">${dirty ? "Unsaved" : esc(n.visibility) + (n.shareToken ? " · s/"+n.shareToken : "")}</span>
       <button class="ghost" id="n-folder" style="font-size:.8125rem;color:var(--muted)">${icon("folder")} <span id="n-folder-label">${esc(n.folder||"none")}</span></button>
+      <button id="n-tags" class="ghost" style="font-size:.8125rem;color:var(--muted)" title="Edit tags">${icon("tag")} <span id="n-tag-label">${(n.tags||[]).length||"0"} tags</span></button>
       <button id="n-share">${icon("share")}</button>
       <button id="n-export">${icon("download")}</button>
       <button class="primary" id="n-save">Save</button>
@@ -269,6 +300,7 @@ function renderEditor() {
   bind("#n-export","click", () => window.open(`/api/notes/${currentNoteId}/export`));
   bind("#n-share","click", shareAction);
   bind("#n-folder","click", folderAction);
+  bind("#n-tags","click", tagsAction);
   bind("#attach-toggle","click", () => {
     const b = document.getElementById("attach-body"); const ic = document.querySelector("#attach-toggle .lucide");
     if (b) { const v = b.style.display !== "none"; b.style.display = v ? "none" : ""; if (ic) ic.innerHTML = ICONS[v ? "chevron-right" : "chevron-down"]!; }
@@ -349,6 +381,16 @@ async function folderAction() {
   await loadData(); refreshSidebar();
 }
 
+async function tagsAction() {
+  if (!noteData) return;
+  const t = await showInput("Tags (comma separated)", { value: (noteData.tags||[]).join(", ") });
+  if (t === null) return;
+  const tags = t.split(",").map((s: string) => s.trim()).filter(Boolean);
+  await saveNote(currentNoteId!, { tags });
+  noteData.tags = tags;
+  document.getElementById("n-tag-label")!.textContent = tags.length + " tags";
+}
+
 async function newNoteAction() {
   const t = await showInput("Title", { value: "Untitled" });
   if (!t?.trim()) return;
@@ -405,7 +447,8 @@ async function renderShell() {
           ${icon("search",14)}
           <input id="sq" type="search" placeholder="Search" style="flex:1;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-sm);padding:.35rem .6rem;font-size:.8125rem;width:100%">
         </div>
-        <nav class="sidebar-nav" id="sidebar-nav"></nav>
+        <nav class="sidebar-nav" id="sidebar-nav" style="flex:1;overflow-y:auto"></nav>
+        <div id="backlinks-panel" style="display:none;border-top:1px solid var(--line);background:var(--panel-deep);padding:.5rem .75rem;max-height:30vh;overflow-y:auto"></div>
       </aside>
       <main class="main-area" id="main-area"></main>
     </div>

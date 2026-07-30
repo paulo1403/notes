@@ -48,6 +48,7 @@ model Note {
   slug           String
   body           String       @default("") @db.Text
   folder         String?
+  tags           String[]     @default([])
   visibility     Visibility   @default(PRIVATE)
   shareToken     String?      @unique
   shareExpiresAt DateTime?

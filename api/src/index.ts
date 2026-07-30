@@ -127,6 +127,7 @@ const app = new Elysia()
         folder: true,
         visibility: true,
         shareToken: true,
+        tags: true,
         updatedAt: true,
         createdAt: true,
       },
@@ -153,6 +154,7 @@ const app = new Elysia()
           slug,
           body: body.body ?? "",
           folder: body.folder ?? null,
+          tags: body.tags ?? [],
         },
       });
       return { note };
@@ -162,6 +164,7 @@ const app = new Elysia()
         title: t.String({ minLength: 1, maxLength: 200 }),
         body: t.Optional(t.String({ maxLength: 1_000_000 })),
         folder: t.Optional(t.String({ maxLength: 100 })),
+        tags: t.Optional(t.Array(t.String({ maxLength: 50 }))),
       }),
     },
   )
@@ -173,6 +176,13 @@ const app = new Elysia()
       _count: { id: true },
     });
     return { folders: rows.map(r => ({ name: r.folder, count: r._count.id })) };
+  })
+  .get("/api/tags", async ({ user, set }) => {
+    if (!user) { set.status = 401; return { error: "unauthorized" }; }
+    const notes = await db.note.findMany({ where: { ownerId: user.id }, select: { tags: true } });
+    const count = new Map<string, number>();
+    for (const n of notes) for (const t of n.tags) count.set(t, (count.get(t) || 0) + 1);
+    return { tags: [...count.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count) };
   })
   .get("/api/notes/:id", async ({ user, set, params }) => {
     if (!user) {
@@ -188,6 +198,20 @@ const app = new Elysia()
       return { error: "not found" };
     }
     return { note };
+  })
+  .get("/api/notes/:id/backlinks", async ({ user, set, params }) => {
+    if (!user) { set.status = 401; return { error: "unauthorized" }; }
+    const current = await db.note.findUnique({ where: { id: params.id }, select: { title: true, ownerId: true } });
+    if (!current || current.ownerId !== user.id) { set.status = 404; return { error: "not found" }; }
+    const all = await db.note.findMany({ where: { ownerId: user.id }, select: { id: true, title: true } });
+    const titleWords = current.title.toLowerCase().split(/\s+/).filter(Boolean);
+    const linked: { id: string; title: string }[] = [];
+    for (const n of all) {
+      if (n.id === params.id) continue;
+      const body = await db.note.findUnique({ where: { id: n.id }, select: { body: true } });
+      if (body?.body && titleWords.some(w => body.body.toLowerCase().includes(w))) linked.push(n);
+    }
+    return { backlinks: linked };
   })
   .patch(
     "/api/notes/:id",
@@ -207,6 +231,7 @@ const app = new Elysia()
           ...(body.title !== undefined ? { title: body.title } : {}),
           ...(body.body !== undefined ? { body: body.body } : {}),
           ...(body.folder !== undefined ? { folder: body.folder } : {}),
+          ...(body.tags !== undefined ? { tags: body.tags } : {}),
         },
       });
       return { note };
@@ -216,6 +241,7 @@ const app = new Elysia()
         title: t.Optional(t.String({ minLength: 1, maxLength: 200 })),
         body: t.Optional(t.String({ maxLength: 1_000_000 })),
         folder: t.Optional(t.String({ maxLength: 100 })),
+        tags: t.Optional(t.Array(t.String({ maxLength: 50 }))),
       }),
     },
   )
