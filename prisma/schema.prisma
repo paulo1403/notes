@@ -19,14 +19,30 @@ enum Visibility {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
+  id           String      @id @default(cuid())
+  email        String      @unique
   name         String
   passwordHash String
-  role         Role      @default(USER)
-  createdAt    DateTime  @default(now())
+  role         Role        @default(USER)
+  avatar       String?
+  bio          String?     @db.Text
+  createdAt    DateTime    @default(now())
   notes        Note[]
   sessions     Session[]
+  noteShares   NoteShare[]
+}
+
+model NoteShare {
+  id         String   @id @default(cuid())
+  noteId     String
+  note       Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission String   @default("READ")
+  createdAt  DateTime @default(now())
+
+  @@unique([noteId, userId])
+  @@index([userId])
 }
 
 model Session {
@@ -58,6 +74,7 @@ model Note {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   attachments    Attachment[]
+  shares         NoteShare[]
 
   @@unique([ownerId, slug])
   @@index([ownerId])

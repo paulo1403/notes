@@ -1,23 +1,17 @@
 <!doctype html>
-<html lang="en" class="">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="Markdown notes with auth, share links, and S3 attachments" />
-    <meta name="theme-color" content="#0e0f14" media="(prefers-color-scheme:dark)" />
-    <meta name="theme-color" content="#fafbfc" media="(prefers-color-scheme:light)" />
     <title>Notes</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&display=swap" rel="stylesheet" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23d08770'/><text x='16' y='22' font-size='18' fill='%230e0f14' text-anchor='middle' font-family='system-ui' font-weight='bold'>N</text></svg>">
     <script>
-      const t = localStorage.getItem("notes-theme");
-      if (t === "light") document.documentElement.className = "light";
-      else if (t === "dark") document.documentElement.className = "";
+      (function(){var t=localStorage.getItem("notes-ui");if(t){try{t=JSON.parse(t).state.theme}catch(e){t=null}}document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark")})();
     </script>
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

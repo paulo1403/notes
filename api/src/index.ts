@@ -59,7 +59,7 @@ const app = new Elysia()
   )
   .use(
     isProd && webDist
-      ? staticPlugin({ prefix: "/", assets: webDist, noCache: false })
+      ? staticPlugin({ prefix: "/", assets: webDist, noCache: true })
       : (a: Elysia) => a,
   )
   .derive(async ({ request }) => {
@@ -94,6 +94,33 @@ const app = new Elysia()
     set.headers["set-cookie"] = clearSessionCookie();
     return { ok: true };
   })
+  .post(
+    "/api/auth/register",
+    async ({ body, set }) => {
+      const existing = await db.user.findUnique({ where: { email: body.email } });
+      if (existing) { set.status = 409; return { error: "email already registered" }; }
+      const user = await db.user.create({
+        data: {
+          email: body.email,
+          name: body.name || body.email.split("@")[0],
+          passwordHash: hashPassword(body.password),
+          role: "USER",
+        },
+      });
+      const session = await createSession(user.id);
+      set.headers["set-cookie"] = sessionCookie(session.token, session.expiresAt);
+      return {
+        user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      };
+    },
+    {
+      body: t.Object({
+        email: t.String({ minLength: 1 }),
+        password: t.String({ minLength: 6 }),
+        name: t.Optional(t.String()),
+      }),
+    },
+  )
   .get("/api/auth/me", ({ user, set }) => {
     if (!user) {
       set.status = 401;
@@ -127,6 +154,9 @@ const app = new Elysia()
         folder: true,
         visibility: true,
         shareToken: true,
+        shareExpiresAt: true,
+        maxViews: true,
+        viewCount: true,
         tags: true,
         updatedAt: true,
         createdAt: true,
@@ -191,7 +221,7 @@ const app = new Elysia()
     }
     const note = await db.note.findFirst({
       where: { id: params.id, ownerId: user.id },
-      include: { attachments: true },
+      include: { attachments: true, shares: { include: { user: { select: { id: true, email: true, name: true, avatar: true } } } } },
     });
     if (!note) {
       set.status = 404;
@@ -411,6 +441,137 @@ const app = new Elysia()
       return { error: "not found" };
     }
     return { url: await presignGet(attachment.key) };
+  })
+  .get("/api/users/search", async ({ user, set, query }) => {
+    if (!user) { set.status = 401; return { error: "unauthorized" }; }
+    const q = query.q?.trim() || "";
+    if (q.length < 2) return { users: [] };
+    const users = await db.user.findMany({
+      where: { id: { not: user.id }, OR: [{ email: { contains: q, mode: "insensitive" } }, { name: { contains: q, mode: "insensitive" } }] },
+      select: { id: true, email: true, name: true, avatar: true },
+      take: 20,
+    });
+    return { users };
+  })
+  .get("/api/notes/:id/shares", async ({ user, set, params }) => {
+    if (!user) { set.status = 401; return { error: "unauthorized" }; }
+    const note = await db.note.findFirst({ where: { id: params.id, ownerId: user.id } });
+    if (!note) { set.status = 404; return { error: "not found" }; }
+    const shares = await db.noteShare.findMany({
+      where: { noteId: note.id },
+      include: { user: { select: { id: true, email: true, name: true, avatar: true } } },
+    });
+    return { shares: shares.map(s => ({ id: s.id, permission: s.permission, createdAt: s.createdAt, user: s.user })) };
+  })
+  .post(
+    "/api/notes/:id/shares",
+    async ({ user, set, params, body }) => {
+      if (!user) { set.status = 401; return { error: "unauthorized" }; }
+      const note = await db.note.findFirst({ where: { id: params.id, ownerId: user.id } });
+      if (!note) { set.status = 404; return { error: "not found" }; }
+      const targets = await db.user.findMany({ where: { id: { in: body.userIds }, id: { not: user.id } } });
+      for (const target of targets) {
+        await db.noteShare.upsert({
+          where: { noteId_userId: { noteId: note.id, userId: target.id } },
+          create: { noteId: note.id, userId: target.id, permission: body.permission || "READ" },
+          update: { permission: body.permission || "READ" },
+        });
+      }
+      return { ok: true };
+    },
+    { body: t.Object({ userIds: t.Array(t.String()), permission: t.Optional(t.String()) }) },
+  )
+  .delete("/api/notes/:id/shares/:userId", async ({ user, set, params }) => {
+    if (!user) { set.status = 401; return { error: "unauthorized" }; }
+    const note = await db.note.findFirst({ where: { id: params.id, ownerId: user.id } });
+    if (!note) { set.status = 404; return { error: "not found" }; }
+    await db.noteShare.deleteMany({ where: { noteId: note.id, userId: params.userId } });
+    return { ok: true };
+  })
+  .get("/api/auth/profile", async ({ user, set }) => {
+    if (!user) { set.status = 401; return { error: "unauthorized" }; }
+    const full = await db.user.findUnique({ where: { id: user.id } });
+    if (!full) { set.status = 404; return { error: "not found" }; }
+    let avatarUrl: string | null = null;
+    if (full.avatar) try { avatarUrl = await presignGet(full.avatar); } catch {}
+    return { profile: { id: full.id, email: full.email, name: full.name, role: full.role, bio: full.bio, avatar: avatarUrl } };
+  })
+  .patch(
+    "/api/auth/profile",
+    async ({ user, set, body }) => {
+      if (!user) { set.status = 401; return { error: "unauthorized" }; }
+      const updated = await db.user.update({
+        where: { id: user.id },
+        data: { ...(body.name !== undefined ? { name: body.name } : {}), ...(body.bio !== undefined ? { bio: body.bio } : {}) },
+      });
+      return { profile: { id: updated.id, email: updated.email, name: updated.name, role: updated.role, bio: updated.bio } };
+    },
+    { body: t.Object({ name: t.Optional(t.String()), bio: t.Optional(t.String()) }) },
+  )
+  .post("/api/auth/profile/photo", async ({ user, set, request }) => {
+    if (!user) { set.status = 401; return { error: "unauthorized" }; }
+    const form = await request.formData();
+    const file = form.get("file");
+    if (!(file instanceof File)) { set.status = 400; return { error: "file required" }; }
+    if (file.size > 5 * 1024 * 1024) { set.status = 400; return { error: "max 5MB" }; }
+    const ext = file.name.includes(".") ? file.name.split(".").pop() : "png";
+    const key = `avatars/${user.id}/${crypto.randomUUID()}.${ext}`;
+    const buf = Buffer.from(await file.arrayBuffer());
+    await putObject(key, buf, file.type || "image/png");
+    await db.user.update({ where: { id: user.id }, data: { avatar: key } });
+    const url = await presignGet(key);
+    return { avatar: url };
+  })
+  .get("/api/admin/users", async ({ user, set }) => {
+    if (!user || user.role !== "ADMIN") { set.status = 403; return { error: "forbidden" }; }
+    const users = await db.user.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, email: true, name: true, role: true, bio: true, avatar: true, createdAt: true, _count: { select: { notes: true } } } });
+    return { users: users.map(u => ({ ...u, noteCount: u._count.notes, _count: undefined })) };
+  })
+  .patch(
+    "/api/admin/users/:id",
+    async ({ user, set, params, body }) => {
+      if (!user || user.role !== "ADMIN") { set.status = 403; return { error: "forbidden" }; }
+      const data: Record<string, string> = {};
+      if (body.password) data.passwordHash = hashPassword(body.password);
+      if (body.name) data.name = body.name;
+      if (body.role) data.role = body.role;
+      const updated = await db.user.update({ where: { id: params.id }, data, select: { id: true, email: true, name: true, role: true } });
+      return { user: updated };
+    },
+    { body: t.Object({ name: t.Optional(t.String()), password: t.Optional(t.String()), role: t.Optional(t.String()) }) },
+  )
+  .delete("/api/admin/users/:id", async ({ user, set, params }) => {
+    if (!user || user.role !== "ADMIN") { set.status = 403; return { error: "forbidden" }; }
+    if (params.id === user.id) { set.status = 400; return { error: "cannot delete yourself" }; }
+    await db.user.delete({ where: { id: params.id } });
+    return { ok: true };
+  })
+  .get("/s/:token", async ({ params, set, query }) => {
+    const note = await db.note.findFirst({
+      where: { shareToken: params.token, visibility: { in: ["LINK", "PUBLIC"] } },
+      select: { id: true, title: true, body: true, updatedAt: true, visibility: true, shareExpiresAt: true, sharePassword: true, maxViews: true, viewCount: true },
+    });
+    if (!note) {
+      set.headers["content-type"] = "text/html; charset=utf-8";
+      return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not Found - Notes</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0e0f14;color:#dadce0}div{text-align:center}h1{font-size:1.5rem;margin:0 0 .5rem}p{color:#9aa0a8}</style></head><body><div><h1>Note not found</h1><p>This link may be invalid or the note has been removed.</p></div></body></html>`;
+    }
+    if (note.shareExpiresAt && note.shareExpiresAt < new Date()) {
+      set.headers["content-type"] = "text/html; charset=utf-8";
+      return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Expired - Notes</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0e0f14;color:#dadce0}div{text-align:center}h1{font-size:1.5rem;margin:0 0 .5rem}p{color:#9aa0a8}</style></head><body><div><h1>Link expired</h1><p>This share link has expired.</p></div></body></html>`;
+    }
+    const pw = query.password as string | undefined;
+    if (note.sharePassword && pw !== note.sharePassword) {
+      set.headers["content-type"] = "text/html; charset=utf-8";
+      if (pw !== undefined) {
+        return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Wrong Password - Notes</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0e0f14;color:#dadce0}.card{background:#1c1e24;padding:2rem;border-radius:8px;text-align:center}h1{font-size:1.5rem;margin:0 0 1rem;margin-top:0}input{padding:.5rem;border-radius:4px;border:1px solid #2a2d35;background:#0e0f14;color:#dadce0;width:100%;margin-bottom:.75rem}button{background:#d08770;color:#0e0f14;border:none;padding:.5rem 1.5rem;border-radius:4px;cursor:pointer}</style></head><body><div class="card"><h1>Incorrect password</h1><p style="color:#9aa0a8;margin-bottom:1rem">Wrong password. Try again.</p><form method="GET"><input type="password" name="password" placeholder="Enter password" /><button type="submit">Retry</button></form></div></body></html>`;
+      }
+      const pwForm = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Password Required - Notes</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0e0f14;color:#dadce0}.card{background:#1c1e24;padding:2rem;border-radius:8px;text-align:center}h1{font-size:1.5rem;margin:0 0 1rem;margin-top:0}input{padding:.5rem;border-radius:4px;border:1px solid #2a2d35;background:#0e0f14;color:#dadce0;width:100%;margin-bottom:.75rem}button{background:#d08770;color:#0e0f14;border:none;padding:.5rem 1.5rem;border-radius:4px;cursor:pointer}</style></head><body><div class="card"><h1>Password required</h1><p style="color:#9aa0a8;margin-bottom:1rem">This note is password-protected.</p><form method="GET"><input type="password" name="password" placeholder="Enter password" /><button type="submit">View</button></form></div></body></html>`;
+      return pwForm;
+    }
+    await db.note.update({ where: { id: note.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
+    const rendered = await marked.parse(note.body, { async: true });
+    set.headers["content-type"] = "text/html; charset=utf-8";
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${note.title} - Notes</title><style>body{max-width:720px;margin:0 auto;padding:2rem 1.5rem;font-family:system-ui,sans-serif;line-height:1.7;color:#dadce0;background:#0e0f14}img{max-width:100%;border-radius:4px}pre{background:#1c1e24;padding:.75rem;border-radius:6px;overflow-x:auto}code{font-size:.9em}blockquote{border-left:3px solid #d08770;padding-left:.75rem;margin-left:0;opacity:.8}h1,h2,h3{line-height:1.2;letter-spacing:-.02em}a{color:#d08770}.meta{color:#636b78;font-size:.8rem;margin-bottom:1.5rem}h1{margin-top:0}</style></head><body><h1>${note.title}</h1><div class="meta">${new Date(note.updatedAt).toLocaleDateString()} · Shared via Notes</div>${rendered}</body></html>`;
   })
   .onStart(async () => {
     await seedAdmin();
