@@ -3,7 +3,6 @@ import Base from "../../layouts/Base.astro";
 export async function getStaticPaths() {
   return [{ params: { id: "_dummy" } }];
 }
-const { id } = Astro.params;
 ---
 <Base title="Edit · Notes">
   <div class="app-layout">
@@ -22,7 +21,9 @@ const { id } = Astro.params;
     <main class="main-area">
       <div class="editor-top">
         <span class="status" id="status-bar"></span>
+        <button id="folder-btn" class="ghost" style="font-size:0.8125rem;color:var(--muted);">📁 <span id="folder-label">none</span></button>
         <button id="share">Share</button>
+        <button id="export">Export</button>
         <button class="primary" id="save">Save</button>
         <button class="danger" id="del">Delete</button>
       </div>
@@ -45,7 +46,15 @@ const { id } = Astro.params;
       </div>
     </main>
   </div>
-  <script define:vars={{ noteId: id }}>
+  <script>
+    // Extract ID from pathname: /note/<id>
+    const noteId = location.pathname.split("/").pop();
+
+    if (!noteId || noteId === "_dummy") {
+      document.getElementById("status-bar").textContent = "Invalid note";
+      throw new Error("no note id");
+    }
+
     const themeBtn = document.getElementById("theme-btn");
     themeBtn.addEventListener("click", () => {
       const isLight = document.documentElement.className === "light";
@@ -62,7 +71,8 @@ const { id } = Astro.params;
     let dirty = false;
 
     function escapeHtml(s) {
-      return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+      return (s || "").replace(/[&<>"]/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
     }
 
     function mdToHtml(t) {
@@ -85,8 +95,9 @@ const { id } = Astro.params;
     }
 
     function setStatus(t, kind) {
-      status.textContent = t;
-      status.className = "status" + (kind ? ` ${kind}` : "");
+      const el = document.getElementById("status-bar");
+      el.textContent = t;
+      el.className = "status" + (kind ? ` ${kind}` : "");
     }
 
     function markDirty() {
@@ -102,6 +113,7 @@ const { id } = Astro.params;
       note = data.note;
       titleEl.value = note.title;
       bodyEl.value = note.body;
+      document.getElementById("folder-label").textContent = note.folder || "none";
       dirty = false;
       setStatus(note.visibility + (note.shareToken ? ` · s/${note.shareToken}` : ""));
       render();
@@ -148,9 +160,29 @@ const { id } = Astro.params;
       location.href = "/app";
     };
 
+    document.getElementById("export").onclick = () => {
+      window.open(`/api/notes/${noteId}/export`, "_blank");
+    };
+
+    document.getElementById("folder-btn").onclick = async () => {
+      const f = prompt("Folder name (empty = no folder)", note?.folder || "");
+      if (f === null) return;
+      const val = f.trim() || null;
+      await fetch(`/api/notes/${noteId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ folder: val }),
+      });
+      document.getElementById("folder-label").textContent = val || "none";
+    };
+
     document.getElementById("share").onclick = async () => {
       const mode = prompt("Visibility: PRIVATE / LINK / PUBLIC", note?.visibility || "LINK");
       if (!mode) return;
+      const expiresIn = mode === "LINK" ? parseInt(prompt("Expire in seconds (blank = never)", "") || "0") : 0;
+      const body = { visibility: mode.toUpperCase() };
+      if (expiresIn > 0) body.expiresIn = expiresIn;
       const res = await fetch(`/api/notes/${noteId}/share`, {
         method: "POST",
         credentials: "include",

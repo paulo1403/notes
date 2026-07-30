@@ -123,6 +123,7 @@ const app = new Elysia()
         id: true,
         title: true,
         slug: true,
+        folder: true,
         visibility: true,
         shareToken: true,
         updatedAt: true,
@@ -150,6 +151,7 @@ const app = new Elysia()
           title: body.title,
           slug,
           body: body.body ?? "",
+          folder: body.folder ?? null,
         },
       });
       return { note };
@@ -158,9 +160,19 @@ const app = new Elysia()
       body: t.Object({
         title: t.String({ minLength: 1, maxLength: 200 }),
         body: t.Optional(t.String({ maxLength: 1_000_000 })),
+        folder: t.Optional(t.String({ maxLength: 100 })),
       }),
     },
   )
+  .get("/api/folders", async ({ user, set }) => {
+    if (!user) { set.status = 401; return { error: "unauthorized" }; }
+    const rows = await db.note.groupBy({
+      by: ["folder"],
+      where: { ownerId: user.id, folder: { not: null } },
+      _count: { id: true },
+    });
+    return { folders: rows.map(r => ({ name: r.folder, count: r._count.id })) };
+  })
   .get("/api/notes/:id", async ({ user, set, params }) => {
     if (!user) {
       set.status = 401;
@@ -193,6 +205,7 @@ const app = new Elysia()
         data: {
           ...(body.title !== undefined ? { title: body.title } : {}),
           ...(body.body !== undefined ? { body: body.body } : {}),
+          ...(body.folder !== undefined ? { folder: body.folder } : {}),
         },
       });
       return { note };
@@ -201,6 +214,7 @@ const app = new Elysia()
       body: t.Object({
         title: t.Optional(t.String({ minLength: 1, maxLength: 200 })),
         body: t.Optional(t.String({ maxLength: 1_000_000 })),
+        folder: t.Optional(t.String({ maxLength: 100 })),
       }),
     },
   )
@@ -236,6 +250,7 @@ const app = new Elysia()
         return { error: "not found" };
       }
       const visibility = body.visibility;
+      const shareExpiresAt = body.expiresIn ? new Date(Date.now() + body.expiresIn * 1000) : null;
       const note = await db.note.update({
         where: { id: existing.id },
         data: {
@@ -244,6 +259,7 @@ const app = new Elysia()
             visibility === "PRIVATE"
               ? null
               : existing.shareToken ?? shareToken(),
+          shareExpiresAt,
         },
       });
       return { note };
@@ -251,9 +267,21 @@ const app = new Elysia()
     {
       body: t.Object({
         visibility: t.Union([t.Literal("PRIVATE"), t.Literal("LINK"), t.Literal("PUBLIC")]),
+        expiresIn: t.Optional(t.Number()),
       }),
     },
   )
+  .get("/api/notes/:id/export", async ({ user, set, params }) => {
+    if (!user) { set.status = 401; return { error: "unauthorized" }; }
+    const note = await db.note.findFirst({
+      where: { id: params.id, ownerId: user.id },
+    });
+    if (!note) { set.status = 404; return { error: "not found" }; }
+    const filename = `${note.slug}.md`;
+    set.headers["content-type"] = "text/markdown; charset=utf-8";
+    set.headers["content-disposition"] = `attachment; filename="${filename}"`;
+    return `# ${note.title}\n\n${note.body}`;
+  })
   .get("/api/s/:token", async ({ params, set }) => {
     const note = await db.note.findFirst({
       where: {
@@ -266,11 +294,16 @@ const app = new Elysia()
         body: true,
         updatedAt: true,
         visibility: true,
+        shareExpiresAt: true,
       },
     });
     if (!note) {
       set.status = 404;
       return { error: "not found" };
+    }
+    if (note.shareExpiresAt && note.shareExpiresAt < new Date()) {
+      set.status = 410;
+      return { error: "link expired" };
     }
     return {
       note: {
