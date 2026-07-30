@@ -10,6 +10,7 @@ export function ShareDialog({ note, open, onClose }: { note: NoteDetail; open: b
   const [tab, setTab] = useState<'link' | 'users'>('link')
   const [visibility, setVisibility] = useState<'PRIVATE' | 'LINK' | 'PUBLIC'>(note.visibility)
   const [expiresIn, setExpiresIn] = useState('')
+  const [linkCopied, setLinkCopied] = useState(false)
   const [searchQ, setSearchQ] = useState('')
   const [selectedUsers, setSelectedUsers] = useState<{ id: string; name: string; email: string }[]>([])
   const shareLink = useMutation({
@@ -52,7 +53,7 @@ export function ShareDialog({ note, open, onClose }: { note: NoteDetail; open: b
             <div className="space-y-3">
               <div className="flex items-center gap-2 p-2 bg-base-300 rounded-lg">
                 <input className="input input-ghost flex-1 text-sm" readOnly value={shareUrl} />
-                <button className="btn btn-ghost btn-sm btn-square" onClick={() => navigator.clipboard.writeText(shareUrl)} title="Copy link"><Copy className="size-4" /></button>
+                <button className="btn btn-ghost btn-sm btn-square" onClick={() => { navigator.clipboard.writeText(shareUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 1500) }} title="Copy link">{linkCopied ? <span className="text-xs text-success font-medium">Copied!</span> : <Copy className="size-4" />}</button>
               </div>
               <div className="flex flex-wrap gap-2 text-xs">
                 <span className={`badge ${note.visibility === 'PUBLIC' ? 'badge-success' : 'badge-info'} badge-xs`}>{note.visibility}</span>
@@ -64,7 +65,24 @@ export function ShareDialog({ note, open, onClose }: { note: NoteDetail; open: b
                   </span>
                 )}
               </div>
-              <button className="btn btn-ghost btn-sm text-error" onClick={() => revoke.mutate()}>Remove share link</button>
+              <div className="join w-full">
+                <button className={`btn join-item flex-1 ${visibility === 'LINK' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setVisibility('LINK')}>Link</button>
+                <button className={`btn join-item flex-1 ${visibility === 'PUBLIC' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setVisibility('PUBLIC')}>Public</button>
+              </div>
+              <select className="select select-bordered w-full" value={expiresIn} onChange={e => setExpiresIn(e.target.value)}>
+                <option value="">No expiry</option>
+                <option value="3600">1 hour</option>
+                <option value="86400">24 hours</option>
+                <option value="604800">7 days</option>
+                <option value="2592000">30 days</option>
+              </select>
+              <div className="flex gap-2">
+                <button className="btn btn-primary flex-1" onClick={() => shareLink.mutate()} disabled={shareLink.isPending}>
+                  {shareLink.isPending ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-4" />}
+                  Update
+                </button>
+                <button className="btn btn-ghost btn-sm text-error" onClick={() => revoke.mutate()}>Remove</button>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">

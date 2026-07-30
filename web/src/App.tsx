@@ -22,6 +22,7 @@ function App() {
   const selectedNoteId = useStore(s => s.selectedNoteId)
   const setSelectedNoteId = useStore(s => s.setSelectedNoteId)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<string | null>(null)
   const [previewMode, setPreviewMode] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved')
@@ -215,9 +216,8 @@ function App() {
                                   </div>
                                 </td>
                                 <td>
-                                  <button className="btn btn-ghost btn-xs gap-1.5 text-base-content/50 hover:text-base-content" onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(url) }} title={url}>
-                                    <Copy className="size-3" />
-                                    <span className="text-[10px]">Copy</span>
+                                  <button className="btn btn-ghost btn-xs gap-1.5 text-base-content/50 hover:text-base-content" onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(url); setCopiedLinkId(n.id); setTimeout(() => setCopiedLinkId(null), 1500) }} title={url}>
+                                    {copiedLinkId === n.id ? <span className="text-xs text-success font-medium">Copied!</span> : <><Copy className="size-3" /><span className="text-[10px]">Copy</span></>}
                                   </button>
                                 </td>
                                 <td className="text-right">

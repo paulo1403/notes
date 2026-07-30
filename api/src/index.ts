@@ -343,6 +343,7 @@ const app = new Elysia()
       const html = await marked.parse(note.body, { async: true });
       const doc = `<!doctype html><html lang="en"><head><meta charset="UTF-8"><title>${note.title}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{max-width:720px;margin:0 auto;padding:2rem 1.5rem;font-family:system-ui,sans-serif;line-height:1.7;color:#1c1e26}img{max-width:100%}pre{background:#f0f1f4;padding:.75rem;border-radius:8px;overflow:auto}</style></head><body><h1>${note.title}</h1>${html}</body></html>`;
       set.headers["content-type"] = "text/html; charset=utf-8";
+      set.headers["cache-control"] = "no-cache, no-store, must-revalidate";
       set.headers["content-disposition"] = `attachment; filename="${note.slug}.html"`;
       return doc;
     }
@@ -553,15 +554,18 @@ const app = new Elysia()
     });
     if (!note) {
       set.headers["content-type"] = "text/html; charset=utf-8";
+      set.headers["cache-control"] = "no-cache, no-store, must-revalidate";
       return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not Found - Notes</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0e0f14;color:#dadce0}div{text-align:center}h1{font-size:1.5rem;margin:0 0 .5rem}p{color:#9aa0a8}</style></head><body><div><h1>Note not found</h1><p>This link may be invalid or the note has been removed.</p></div></body></html>`;
     }
     if (note.shareExpiresAt && note.shareExpiresAt < new Date()) {
       set.headers["content-type"] = "text/html; charset=utf-8";
+      set.headers["cache-control"] = "no-cache, no-store, must-revalidate";
       return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Expired - Notes</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0e0f14;color:#dadce0}div{text-align:center}h1{font-size:1.5rem;margin:0 0 .5rem}p{color:#9aa0a8}</style></head><body><div><h1>Link expired</h1><p>This share link has expired.</p></div></body></html>`;
     }
     const pw = query.password as string | undefined;
     if (note.sharePassword && pw !== note.sharePassword) {
       set.headers["content-type"] = "text/html; charset=utf-8";
+      set.headers["cache-control"] = "no-cache, no-store, must-revalidate";
       if (pw !== undefined) {
         return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Wrong Password - Notes</title><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0e0f14;color:#dadce0}.card{background:#1c1e24;padding:2rem;border-radius:8px;text-align:center}h1{font-size:1.5rem;margin:0 0 1rem;margin-top:0}input{padding:.5rem;border-radius:4px;border:1px solid #2a2d35;background:#0e0f14;color:#dadce0;width:100%;margin-bottom:.75rem}button{background:#d08770;color:#0e0f14;border:none;padding:.5rem 1.5rem;border-radius:4px;cursor:pointer}</style></head><body><div class="card"><h1>Incorrect password</h1><p style="color:#9aa0a8;margin-bottom:1rem">Wrong password. Try again.</p><form method="GET"><input type="password" name="password" placeholder="Enter password" /><button type="submit">Retry</button></form></div></body></html>`;
       }
@@ -571,6 +575,7 @@ const app = new Elysia()
     await db.note.update({ where: { id: note.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
     const rendered = await marked.parse(note.body, { async: true });
     set.headers["content-type"] = "text/html; charset=utf-8";
+      set.headers["cache-control"] = "no-cache, no-store, must-revalidate";
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${note.title} - Notes</title><style>body{max-width:720px;margin:0 auto;padding:2rem 1.5rem;font-family:system-ui,sans-serif;line-height:1.7;color:#dadce0;background:#0e0f14}img{max-width:100%;border-radius:4px}pre{background:#1c1e24;padding:.75rem;border-radius:6px;overflow-x:auto}code{font-size:.9em}blockquote{border-left:3px solid #d08770;padding-left:.75rem;margin-left:0;opacity:.8}h1,h2,h3{line-height:1.2;letter-spacing:-.02em}a{color:#d08770}.meta{color:#636b78;font-size:.8rem;margin-bottom:1.5rem}h1{margin-top:0}</style></head><body><h1>${note.title}</h1><div class="meta">${new Date(note.updatedAt).toLocaleDateString()} · Shared via Notes</div>${rendered}</body></html>`;
   })
   .onStart(async () => {
@@ -591,6 +596,7 @@ const app = new Elysia()
     const html = fallbacks.get("/");
     if (html) {
       set.headers["content-type"] = "text/html; charset=utf-8";
+      set.headers["cache-control"] = "no-cache, no-store, must-revalidate";
       return html;
     }
     set.status = 404;
