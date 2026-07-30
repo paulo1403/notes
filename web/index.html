@@ -1,7 +1,3 @@
----
-import "../styles/global.css";
-const { title = "Notes" } = Astro.props;
----
 <!doctype html>
 <html lang="en" class="">
   <head>
@@ -10,18 +6,18 @@ const { title = "Notes" } = Astro.props;
     <meta name="description" content="Markdown notes with auth, share links, and S3 attachments" />
     <meta name="theme-color" content="#0e0f14" media="(prefers-color-scheme:dark)" />
     <meta name="theme-color" content="#fafbfc" media="(prefers-color-scheme:light)" />
-    <title>{title}</title>
+    <title>Notes</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&display=swap" rel="stylesheet" />
+    <script>
+      const t = localStorage.getItem("notes-theme");
+      if (t === "light") document.documentElement.className = "light";
+      else if (t === "dark") document.documentElement.className = "";
+    </script>
   </head>
   <body>
-    <slot />
-    <script type="module">
-      const stored = localStorage.getItem("notes-theme");
-      if (stored === "light") document.documentElement.className = "light";
-      else if (stored === "dark") document.documentElement.className = "";
-    </script>
-    <script type="module" src="/lucide.js"></script>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
