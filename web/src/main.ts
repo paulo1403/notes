@@ -235,8 +235,11 @@ function renderEditor() {
         <div class="preview-pane" id="n-preview"></div>
       </div>
       <section class="attach-area">
-        <div class="attach-head"><strong>Attachments</strong><input type="file" id="n-file" style="flex:1;font-size:.8125rem"><button id="n-upload">Upload</button></div>
-        <div id="n-files">${attachHtml}</div>
+        <div class="attach-head" id="attach-toggle" style="cursor:pointer">${icon("chevron-down",14)} <strong>Attachments</strong><span style="color:var(--muted);font-weight:400;font-size:.75rem">${n.attachments?.length||0} files</span></div>
+        <div id="attach-body" style="display:none">
+          <div class="attach-head" style="margin-top:.5rem"><input type="file" id="n-file" style="flex:1;font-size:.8125rem"><button id="n-upload">Upload</button></div>
+          <div id="n-files">${attachHtml}</div>
+        </div>
       </section>
     </div>`;
 
@@ -266,6 +269,15 @@ function renderEditor() {
   bind("#n-export", "click", () => window.open(`/api/notes/${currentNoteId}/export`));
   bind("#n-share", "click", doShare);
   bind("#n-folder", "click", doFolder);
+  bind("#attach-toggle", "click", () => {
+    const body = document.getElementById("attach-body");
+    const icon = document.querySelector("#attach-toggle .lucide");
+    if (body) {
+      const vis = body.style.display !== "none";
+      body.style.display = vis ? "none" : "";
+      if (icon) icon.innerHTML = ICONS[vis ? "chevron-right" : "chevron-down"]!;
+    }
+  });
   bind("#n-title", "input", () => { if (!dirty) { dirty=true; setStatus("Unsaved"); } });
   bind("#n-body", "input", () => { if (!dirty) { dirty=true; setStatus("Unsaved"); } renderPreview(); });
 }
