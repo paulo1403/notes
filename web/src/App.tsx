@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { marked } from 'marked'
-import { Loader2, FileText, Plus, Menu, List, Grid3X3, Eye, EyeOff, Share2, Trash2, Save, Copy } from 'lucide-react'
+import { Loader2, FileText, Plus, Menu, List, Grid3X3, Eye, EyeOff, Share2, Trash2, Save, Copy, ChevronLeft, ChevronRight } from 'lucide-react'
 import * as api from './api'
 import { useStore } from './store'
 import { ThemeSync } from './components/ThemeSync'
@@ -21,6 +21,7 @@ function App() {
   const [page, setPage] = useState<'app' | 'settings' | 'admin'>('app')
   const selectedNoteId = useStore(s => s.selectedNoteId)
   const setSelectedNoteId = useStore(s => s.setSelectedNoteId)
+  const [noteHistory, setNoteHistory] = useState<string[]>([])
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<string | null>(null)
@@ -73,6 +74,34 @@ function App() {
     onSuccess: (n) => { setSelectedNoteId(n.id); qc.invalidateQueries({ queryKey: ['notes'] }) },
   })
 
+  const handlePreviewClick = useCallback((e: React.MouseEvent) => {
+    const link = (e.target as HTMLElement).closest('a')
+    if (!link) return
+    const href = link.getAttribute('href') || ''
+    if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('//') || href.startsWith('#')) return
+    e.preventDefault()
+    const text = link.textContent?.trim() || ''
+    if (!notes) return
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const hrefNorm = norm(href), textNorm = norm(text)
+    const match = notes.find(n => {
+      const titleNorm = norm(n.title)
+      return titleNorm === hrefNorm || titleNorm === textNorm ||
+        n.id === href || n.slug === href.replace(/\.md$/, '')
+    })
+    if (match && match.id !== selectedNoteId) {
+      setNoteHistory(prev => [...prev, selectedNoteId!].filter(Boolean))
+      setSelectedNoteId(match.id)
+    }
+  }, [notes, selectedNoteId, setSelectedNoteId])
+
+  const goBack = useCallback(() => {
+    if (noteHistory.length === 0) { setSelectedNoteId(null); return }
+    const prev = noteHistory[noteHistory.length - 1]
+    setNoteHistory(noteHistory.slice(0, -1))
+    setSelectedNoteId(prev)
+  }, [noteHistory, setSelectedNoteId])
+
   const handleSave = useCallback(() => {
     if (!selectedNoteId || !isDirty) return
     setSaveStatus('saving')
@@ -101,7 +130,7 @@ function App() {
   if (page === 'settings') return <SettingsPage user={user} onBack={() => setPage('app')} />
   if (page === 'admin') return <AdminPage onBack={() => setPage('app')} />
 
-  const sidebarContent = <SidebarContent selectedNoteId={selectedNoteId} onSelectNote={(id) => { setSelectedNoteId(id); closeSidebar() }} user={user} onNavigate={setPage} />
+  const sidebarContent = <SidebarContent selectedNoteId={selectedNoteId} onSelectNote={(id) => { setSelectedNoteId(id); setNoteHistory([]); closeSidebar() }} user={user} onNavigate={setPage} />
 
   return (
     <>
@@ -111,8 +140,27 @@ function App() {
         <div className="drawer-content flex flex-col min-h-screen">
           <div className="navbar bg-base-100 border-b border-base-300 min-h-12 px-2 gap-1">
             <label htmlFor="sidebar" className="btn btn-ghost btn-sm btn-square lg:hidden" title="Open sidebar"><Menu className="size-4" /></label>
-            <div className="flex-1 min-w-0">
-              {noteDetail ? <span className="truncate text-sm font-medium">{noteDetail.title || 'Untitled'}</span> : <span className="text-sm text-base-content/40">Select a note</span>}
+            {noteDetail && (
+              <button className="btn btn-ghost btn-sm btn-square mr-1" onClick={goBack} title="Back to notes list">
+                <ChevronLeft className="size-4" />
+              </button>
+            )}
+            <div className="flex-1 min-w-0 flex items-center gap-1 text-sm">
+              {noteDetail ? (
+                noteHistory.length > 0 ? (
+                  <div className="flex items-center gap-1 min-w-0 truncate">
+                    <button className="text-base-content/40 hover:text-base-content truncate shrink-0 max-w-24" onClick={goBack} title="Go back">
+                      {notes?.find(n => n.id === noteHistory[noteHistory.length - 1])?.title || 'Previous'}
+                    </button>
+                    <ChevronRight className="size-3 text-base-content/20 shrink-0" />
+                    <span className="font-medium truncate">{noteDetail.title || 'Untitled'}</span>
+                  </div>
+                ) : (
+                  <span className="truncate text-sm font-medium">{noteDetail.title || 'Untitled'}</span>
+                )
+              ) : (
+                <span className="text-sm text-base-content/40">Select a note</span>
+              )}
             </div>
             {noteDetail && (
               <div className="flex items-center gap-0.5">
@@ -137,7 +185,8 @@ function App() {
             {noteDetail ? (
               <div className="flex-1 flex flex-col lg:flex-row">
                 <div className={`flex-1 flex flex-col ${previewMode ? 'hidden lg:flex' : ''}`}>
-                  <div className="p-4 pb-0">
+                  <div className="px-4 pt-3 pb-1">
+                    {noteDetail?.folder && <div className="text-[10px] text-base-content/30 mb-1">{noteDetail.folder}</div>}
                     <input className="input input-ghost text-xl font-bold tracking-tight w-full px-0" placeholder="Note title" value={draftTitle} onChange={e => { setDraftTitle(e.target.value); setIsDirty(true) }} />
                   </div>
                   <div className="flex items-center gap-0.5 px-2 py-1 border-b border-base-200 bg-base-200/30">
@@ -157,7 +206,7 @@ function App() {
                   </div>
                 </div>
                 <div className={`flex-1 border-t lg:border-t-0 lg:border-l border-base-300 overflow-hidden p-4 bg-base-200/50 ${!previewMode ? 'hidden lg:block' : ''}`}>
-                  <div className="markdown-body" dangerouslySetInnerHTML={{ __html: draftContent ? marked.parse(draftContent, { async: false }) as string : '<em class="opacity-50">Empty</em>' }} />
+                  <div className="markdown-body" onClick={handlePreviewClick} dangerouslySetInnerHTML={{ __html: draftContent ? marked.parse(draftContent, { async: false }) as string : '<em class="opacity-50">Empty</em>' }} />
                 </div>
               </div>
             ) : (
@@ -203,7 +252,7 @@ function App() {
                             const expired = n.shareExpiresAt && new Date(n.shareExpiresAt) < new Date()
                             const remaining = n.shareExpiresAt ? Math.round((new Date(n.shareExpiresAt).getTime() - Date.now()) / 3600000) : null
                             return (
-                              <tr key={n.id} className="hover:bg-base-300/60 cursor-pointer transition-colors" onClick={() => setSelectedNoteId(n.id)}>
+                              <tr key={n.id} className="hover:bg-base-300/60 cursor-pointer transition-colors" onClick={() => { setNoteHistory([]); setSelectedNoteId(n.id) }}>
                                 <td>
                                   <div className="flex items-center gap-2.5">
                                     <div className="size-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -248,7 +297,7 @@ function App() {
                 ) : (
                   <div className={`grid gap-3 ${view === 'card' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'}`}>
                     {notes.map(n => (
-                      <button key={n.id} className={`card bg-base-200 hover:bg-base-300 transition-colors text-left ${view === 'card' ? 'p-4' : 'p-3 flex-row items-center gap-3'}`} onClick={() => setSelectedNoteId(n.id)}>
+                      <button key={n.id} className={`card bg-base-200 hover:bg-base-300 transition-colors text-left ${view === 'card' ? 'p-4' : 'p-3 flex-row items-center gap-3'}`} onClick={() => { setNoteHistory([]); setSelectedNoteId(n.id) }}>
                         {view === 'card' ? (
                           <>
                             <h3 className="font-semibold truncate text-sm">{n.title || 'Untitled'}</h3>
