@@ -390,7 +390,7 @@ async function init() {
   renderShell();
 }
 
-function renderShell() {
+async function renderShell() {
   document.getElementById("app")!.innerHTML = `
     <div class="sidebar-overlay" id="overlay"></div>
     <div class="app-layout">
