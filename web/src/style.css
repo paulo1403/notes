@@ -79,6 +79,13 @@ textarea{font-family:var(--font-mono);font-size:.875rem;line-height:1.6;resize:v
 .modal-card input:focus-visible{border-color:var(--accent)}
 .modal-actions{display:flex;gap:.5rem;justify-content:flex-end}
 .modal-actions button{padding:.4rem .7rem;font-size:.875rem}
+.share-panel{padding:1.25rem;min-width:340px}
+.share-panel h3{margin:0 0 1rem;font-weight:600;font-size:1rem}
+.share-section{display:grid;gap:.35rem;margin-bottom:.75rem}
+.share-label{font-size:.75rem;color:var(--muted);font-weight:500;display:flex;align-items:center;gap:.35rem}
+.share-section select,.share-section input{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm);padding:.4rem .6rem;color:var(--ink)}
+.share-section select:focus-visible,.share-section input:focus-visible{border-color:var(--accent)}
+.share-actions{display:flex;gap:.5rem;flex-wrap:wrap}
 .auth-wrap{display:flex;align-items:center;justify-content:center;min-height:100dvh;padding:1.5rem}
 .auth-card{width:100%;max-width:380px}
 .auth-card h1{margin:0 0 .35rem;font-size:1.3rem;font-weight:600}

@@ -267,26 +267,20 @@ const app = new Elysia()
   .post(
     "/api/notes/:id/share",
     async ({ user, set, params, body }) => {
-      if (!user) {
-        set.status = 401;
-        return { error: "unauthorized" };
-      }
+      if (!user) { set.status = 401; return { error: "unauthorized" }; }
       const existing = await db.note.findFirst({ where: { id: params.id, ownerId: user.id } });
-      if (!existing) {
-        set.status = 404;
-        return { error: "not found" };
-      }
+      if (!existing) { set.status = 404; return { error: "not found" }; }
       const visibility = body.visibility;
       const shareExpiresAt = body.expiresIn ? new Date(Date.now() + body.expiresIn * 1000) : null;
       const note = await db.note.update({
         where: { id: existing.id },
         data: {
           visibility,
-          shareToken:
-            visibility === "PRIVATE"
-              ? null
-              : existing.shareToken ?? shareToken(),
+          shareToken: visibility === "PRIVATE" ? null : existing.shareToken ?? shareToken(),
           shareExpiresAt,
+          sharePassword: body.password ?? null,
+          maxViews: body.maxViews ?? null,
+          viewCount: visibility === "PRIVATE" ? 0 : existing.viewCount,
         },
       });
       return { note };
@@ -295,9 +289,19 @@ const app = new Elysia()
       body: t.Object({
         visibility: t.Union([t.Literal("PRIVATE"), t.Literal("LINK"), t.Literal("PUBLIC")]),
         expiresIn: t.Optional(t.Number()),
+        password: t.Optional(t.String()),
+        maxViews: t.Optional(t.Number()),
       }),
     },
   )
+  .post("/api/notes/:id/revoke", async ({ user, set, params }) => {
+    if (!user) { set.status = 401; return { error: "unauthorized" }; }
+    const note = await db.note.updateMany({
+      where: { id: params.id, ownerId: user.id },
+      data: { shareToken: null, visibility: "PRIVATE", sharePassword: null, shareExpiresAt: null, maxViews: null, viewCount: 0 },
+    });
+    return { ok: true };
+  })
   .get("/api/notes/:id/export", async ({ user, set, params, query }) => {
     if (!user) { set.status = 401; return { error: "unauthorized" }; }
     const note = await db.note.findFirst({
@@ -317,7 +321,7 @@ const app = new Elysia()
     set.headers["content-disposition"] = `attachment; filename="${filename}"`;
     return `# ${note.title}\n\n${note.body}`;
   })
-  .get("/api/s/:token", async ({ params, set }) => {
+  .get("/api/s/:token", async ({ params, set, query }) => {
     const note = await db.note.findFirst({
       where: {
         shareToken: params.token,
@@ -330,19 +334,29 @@ const app = new Elysia()
         updatedAt: true,
         visibility: true,
         shareExpiresAt: true,
+        sharePassword: true,
+        maxViews: true,
+        viewCount: true,
       },
     });
-    if (!note) {
-      set.status = 404;
-      return { error: "not found" };
+    if (!note) { set.status = 404; return { error: "not found" }; }
+    if (note.shareExpiresAt && note.shareExpiresAt < new Date()) { set.status = 410; return { error: "link expired" }; }
+    if (note.maxViews && note.viewCount >= note.maxViews) { set.status = 410; return { error: "max views reached" }; }
+
+    // Password check
+    const pw = query.password as string | undefined;
+    if (note.sharePassword && pw !== note.sharePassword) {
+      if (pw !== undefined) { set.status = 403; return { error: "wrong password" }; }
+      return { needPassword: true };
     }
-    if (note.shareExpiresAt && note.shareExpiresAt < new Date()) {
-      set.status = 410;
-      return { error: "link expired" };
-    }
+
+    // Increment view count
+    await db.note.update({ where: { id: note.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
+
     return {
       note: {
-        ...note,
+        id: note.id, title: note.title, body: note.body, updatedAt: note.updatedAt,
+        visibility: note.visibility, shareExpiresAt: note.shareExpiresAt,
         html: await marked.parse(note.body, { async: true }),
       },
     };

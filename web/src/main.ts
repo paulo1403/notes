@@ -15,6 +15,13 @@ const ICONS: Record<string, string> = {
   "chevron-right":'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>',
   "file-text":'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>',
   tag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>',
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  eye:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
+  "eye-off":'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>',
+  "bar-chart":'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg>',
+  refresh:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>',
 };
 
 function icon(name: string, s = 16) { return `<span class="lucide" style="width:${s}px;height:${s}px">${ICONS[name]||""}</span>`; }
@@ -130,9 +137,11 @@ async function newNote(title: string, folder?: string) {
   return (await r.json()).note;
 }
 
-async function setShare(id: string, vis: string, exp = 0) {
+async function setShare(id: string, vis: string, exp = 0, pw?: string, mv?: number) {
   const b: any = { visibility: vis };
   if (exp > 0) b.expiresIn = exp;
+  if (pw) b.password = pw;
+  if (mv && mv > 0) b.maxViews = mv;
   const r = await api(`/api/notes/${id}/share`, { method:"POST", body:JSON.stringify(b) });
   return (await r.json()).note;
 }
@@ -388,18 +397,91 @@ async function delAction() {
 
 async function shareAction() {
   if (!noteData) return;
-  const mode = await showInput("Visibility", { value: noteData.visibility || "LINK" });
-  if (!mode) return;
-  const v = mode.toUpperCase();
-  let exp = 0;
-  if (v === "LINK") { const e = await showInput("Expire in seconds (0 = never)", { value: "0" }); exp = parseInt(e||"0", 10); }
-  noteData = await setShare(currentNoteId!, v, exp);
-  setStatus(noteData.visibility + (noteData.shareToken ? " · s/"+noteData.shareToken : ""), "ok");
-  if (noteData.shareToken) {
-    const url = `${location.origin}#/s/${noteData.shareToken}`;
-    await navigator.clipboard.writeText(url).catch(() => {});
-    showMsg("Link copied:\n" + url);
-  }
+  const n = noteData;
+  const token = n.shareToken;
+  const shareUrl = token ? `${location.origin}#/s/${token}` : "";
+  const expiresIn = n.shareExpiresAt ? Math.round((new Date(n.shareExpiresAt).getTime() - Date.now()) / 1000) : 0;
+
+  const html = `
+    <div class="share-panel">
+      <h3>Share note</h3>
+      <div class="share-section">
+        <label class="share-label">${icon("eye",14)} Visibility</label>
+        <select id="sp-vis">
+          <option value="PRIVATE" ${n.visibility==="PRIVATE"?"selected":""}>Private</option>
+          <option value="LINK" ${n.visibility==="LINK"?"selected":""}>Anyone with link</option>
+          <option value="PUBLIC" ${n.visibility==="PUBLIC"?"selected":""}>Public</option>
+        </select>
+      </div>
+      <div class="share-section">
+        <label class="share-label">${icon("clock",14)} Expire after</label>
+        <select id="sp-exp">
+          <option value="0" ${!expiresIn?"selected":""}>Never</option>
+          <option value="3600" ${expiresIn===3600?"selected":""}>1 hour</option>
+          <option value="86400" ${expiresIn===86400?"selected":""}>24 hours</option>
+          <option value="604800" ${expiresIn===604800?"selected":""}>7 days</option>
+        </select>
+      </div>
+      <div class="share-section">
+        <label class="share-label">${icon("lock",14)} Password (optional)</label>
+        <input id="sp-pw" type="password" placeholder="Leave empty for no password" value="${n.sharePassword||""}">
+      </div>
+      <div class="share-section">
+        <label class="share-label">${icon("eye",14)} Max views (0 = unlimited)</label>
+        <input id="sp-mv" type="number" min="0" value="${n.maxViews||0}">
+      </div>
+      ${token ? `
+      <div class="share-section" style="font-size:.8125rem;color:var(--muted)">
+        Views: ${n.viewCount||0} ${n.maxViews ? "/ "+n.maxViews : ""}
+      </div>
+      <div class="share-actions">
+        <button class="ghost" id="sp-copy" ${!shareUrl?"disabled":""}>${icon("copy",14)} Copy link</button>
+        <button class="danger" id="sp-revoke">${icon("x",14)} Revoke</button>
+      </div>` : ""}
+      <div class="share-actions" style="margin-top:.75rem">
+        <button id="modal-cancel" class="ghost">Cancel</button>
+        <button class="primary" id="sp-save">${token ? "Update" : "Generate link"}</button>
+      </div>
+    </div>`;
+
+  showModalPanel(html).then(async (result) => {
+    if (!result || result === "cancel") return;
+    if (result === "revoke") {
+      await api(`/api/notes/${currentNoteId}/revoke`, { method: "POST" });
+      noteData = await fetchNote(currentNoteId!);
+      if (noteData) setStatus("Link revoked", "ok");
+      return;
+    }
+    if (result === "copy" && shareUrl) {
+      await navigator.clipboard.writeText(shareUrl).catch(() => {});
+      showMsg("Link copied");
+      return;
+    }
+    // Save share settings
+    const vis = (document.getElementById("sp-vis") as HTMLSelectElement)?.value || "PRIVATE";
+    const exp = parseInt((document.getElementById("sp-exp") as HTMLSelectElement)?.value || "0", 10);
+    const pw = (document.getElementById("sp-pw") as HTMLInputElement)?.value || "";
+    const mv = parseInt((document.getElementById("sp-mv") as HTMLInputElement)?.value || "0", 10);
+    noteData = await setShare(currentNoteId!, vis, exp, pw, mv || 0);
+    setStatus(noteData.visibility + (noteData.shareToken ? " · s/"+noteData.shareToken : ""), "ok");
+  });
+}
+
+function showModalPanel(html: string): Promise<string|null> {
+  return new Promise(resolve => {
+    modalResolve = resolve; modalActive = true;
+    document.getElementById("modal-content")!.innerHTML = html;
+    document.getElementById("modal")!.classList.add("open");
+    // Delegate clicks
+    const modal = document.getElementById("modal")!;
+    modal.querySelector("#modal-cancel")?.addEventListener("click", () => { closeModal(); resolve("cancel"); });
+    modal.querySelector("#sp-save")?.addEventListener("click", () => { closeModal(); resolve("save"); });
+    modal.querySelector("#sp-copy")?.addEventListener("click", () => { closeModal(); resolve("copy"); });
+    modal.querySelector("#sp-revoke")?.addEventListener("click", async () => {
+      const ok = await showConfirm("Revoke share link?");
+      if (ok) { closeModal(); resolve("revoke"); }
+    });
+  });
 }
 
 async function folderAction() {
