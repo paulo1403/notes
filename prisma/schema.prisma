@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum Visibility {
+  PRIVATE
+  LINK
+  PUBLIC
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         Role      @default(USER)
+  createdAt    DateTime  @default(now())
+  notes        Note[]
+  sessions     Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Note {
+  id          String       @id @default(cuid())
+  ownerId     String
+  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title       String
+  slug        String
+  body        String       @default("") @db.Text
+  visibility  Visibility   @default(PRIVATE)
+  shareToken  String?      @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  attachments Attachment[]
+
+  @@unique([ownerId, slug])
+  @@index([ownerId])
+  @@index([shareToken])
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  noteId    String
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  key       String
+  filename  String
+  mimeType  String
+  size      Int
+  createdAt DateTime @default(now())
+
+  @@index([noteId])
+  @@index([key])
+}

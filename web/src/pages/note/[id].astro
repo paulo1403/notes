@@ -1,0 +1,204 @@
+---
+import Base from "../../layouts/Base.astro";
+const { id } = Astro.params;
+---
+<Base title="Edit · Notes">
+  <header class="editor-head">
+    <button id="back" class="ghost" type="button">← Notes</button>
+    <span id="status" class="status grow">Loading…</span>
+    <button id="share" type="button">Share</button>
+    <button id="save" class="primary" type="button">Save</button>
+    <button id="del" class="danger" type="button">Delete</button>
+  </header>
+
+  <div class="paper paper-pad stack">
+    <input id="title" class="title-input" placeholder="Title" aria-label="Note title" />
+    <div class="editor-grid">
+      <label class="stack" style="gap:0.5rem;">
+        <span class="meta">Markdown</span>
+        <textarea id="body" placeholder="Write…" aria-label="Markdown body"></textarea>
+      </label>
+      <div class="stack" style="gap:0.5rem;">
+        <span class="meta">Preview</span>
+        <div id="preview" class="preview" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <section class="attach" aria-label="Attachments">
+      <div class="attach-head">
+        <strong>Attachments · MinIO / S3</strong>
+        <input id="file" type="file" aria-label="Choose file" />
+        <button id="upload" type="button">Upload</button>
+      </div>
+      <div id="files"></div>
+    </section>
+  </div>
+
+  <script define:vars={{ noteId: id }}>
+    const titleEl = document.getElementById("title");
+    const bodyEl = document.getElementById("body");
+    const preview = document.getElementById("preview");
+    const status = document.getElementById("status");
+    const files = document.getElementById("files");
+    let note = null;
+    let dirty = false;
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+      );
+    }
+
+    function roughMarkdown(md) {
+      return escapeHtml(md)
+        .replace(/^### (.*)$/gm, "<h3>$1</h3>")
+        .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+        .replace(/^# (.*)$/gm, "<h1>$1</h1>")
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.+?)\*/g, "<em>$1</em>")
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\n\n/g, "</p><p>")
+        .replace(/^(.*)$/, "<p>$1</p>");
+    }
+
+    function setStatus(text, kind) {
+      status.textContent = text;
+      status.className = "status grow" + (kind ? ` ${kind}` : "");
+    }
+
+    function render() {
+      preview.innerHTML = bodyEl.value.trim()
+        ? roughMarkdown(bodyEl.value)
+        : '<p class="meta">Preview appears as you type.</p>';
+    }
+
+    function markDirty() {
+      dirty = true;
+      setStatus("Unsaved changes");
+    }
+
+    async function load() {
+      const me = await fetch("/api/auth/me", { credentials: "include" });
+      if (!me.ok) return (location.href = "/login");
+      const res = await fetch(`/api/notes/${noteId}`, { credentials: "include" });
+      if (!res.ok) {
+        setStatus("Note not found", "err");
+        return;
+      }
+      const data = await res.json();
+      note = data.note;
+      titleEl.value = note.title;
+      bodyEl.value = note.body;
+      dirty = false;
+      setStatus(
+        note.visibility + (note.shareToken ? ` · /s/${note.shareToken}` : ""),
+      );
+      render();
+      files.innerHTML = "";
+      for (const a of note.attachments || []) {
+        const row = document.createElement("div");
+        row.className = "file-row";
+        row.innerHTML = `<span class="grow">${escapeHtml(a.filename)}</span><button type="button" data-id="${a.id}">Open</button>`;
+        row.querySelector("button").onclick = async () => {
+          const u = await fetch(`/api/attachments/${a.id}/url`, { credentials: "include" });
+          const j = await u.json();
+          if (j.url) window.open(j.url, "_blank", "noopener");
+          else alert("Could not get file URL. Is MinIO up?");
+        };
+        files.appendChild(row);
+      }
+      if (!(note.attachments || []).length) {
+        files.innerHTML = '<p class="meta">No attachments yet.</p>';
+      }
+    }
+
+    async function save() {
+      setStatus("Saving…");
+      const res = await fetch(`/api/notes/${noteId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: titleEl.value, body: bodyEl.value }),
+      });
+      if (!res.ok) {
+        setStatus("Save failed", "err");
+        return;
+      }
+      dirty = false;
+      setStatus("Saved", "ok");
+    }
+
+    document.getElementById("back").onclick = () => {
+      if (dirty && !confirm("Leave without saving?")) return;
+      location.href = "/app";
+    };
+
+    document.getElementById("save").onclick = save;
+
+    document.getElementById("del").onclick = async () => {
+      if (!confirm("Delete this note permanently?")) return;
+      await fetch(`/api/notes/${noteId}`, { method: "DELETE", credentials: "include" });
+      location.href = "/app";
+    };
+
+    document.getElementById("share").onclick = async () => {
+      const mode = prompt("Visibility: PRIVATE, LINK, or PUBLIC", note?.visibility || "LINK");
+      if (!mode) return;
+      const res = await fetch(`/api/notes/${noteId}/share`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ visibility: mode.toUpperCase() }),
+      });
+      if (!res.ok) {
+        setStatus("Share update failed", "err");
+        return;
+      }
+      const data = await res.json();
+      note = data.note;
+      setStatus(note.visibility + (note.shareToken ? ` · /s/${note.shareToken}` : ""), "ok");
+      if (note.shareToken) {
+        const url = `${location.origin}/s/${note.shareToken}`;
+        await navigator.clipboard.writeText(url).catch(() => {});
+        alert(`Share link copied:\n${url}`);
+      }
+    };
+
+    document.getElementById("upload").onclick = async () => {
+      const input = document.getElementById("file");
+      if (!input.files?.length) {
+        alert("Choose a file first.");
+        return;
+      }
+      const fd = new FormData();
+      fd.append("file", input.files[0]);
+      setStatus("Uploading…");
+      const res = await fetch(`/api/notes/${noteId}/attachments`, {
+        method: "POST",
+        credentials: "include",
+        body: fd,
+      });
+      if (!res.ok) {
+        setStatus("Upload failed — check MinIO", "err");
+        return;
+      }
+      setStatus("Uploaded", "ok");
+      load();
+    };
+
+    titleEl.addEventListener("input", markDirty);
+    bodyEl.addEventListener("input", () => {
+      markDirty();
+      render();
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        save();
+      }
+    });
+
+    load();
+  </script>
+</Base>

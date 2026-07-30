@@ -1,0 +1,25 @@
+{
+  "name": "notes",
+  "version": "0.1.0",
+  "private": false,
+  "license": "MIT",
+  "description": "Open-source Markdown notes with auth, sharing, and S3 attachments",
+  "workspaces": ["api", "web"],
+  "scripts": {
+    "dev": "bun run --filter api dev & bun run --filter web dev",
+    "dev:api": "bun run --filter api dev",
+    "dev:web": "bun run --filter web dev",
+    "build": "bun run --filter web build && bun run --filter api build",
+    "db:generate": "bunx prisma generate",
+    "db:migrate": "bunx prisma migrate dev",
+    "db:push": "bunx prisma db push",
+    "start": "bun run --filter api start"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.0"
+  }
+}

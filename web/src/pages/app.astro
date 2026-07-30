@@ -1,0 +1,111 @@
+---
+import Base from "../layouts/Base.astro";
+---
+<Base title="Your notes · Notes">
+  <header class="topbar">
+    <div class="brand grow">
+      <h1>Notes</h1>
+      <p id="who">Checking session…</p>
+    </div>
+    <input id="q" class="search" type="search" placeholder="Search notes" aria-label="Search notes" />
+    <button id="new" class="primary" type="button">New note</button>
+    <button id="logout" class="ghost" type="button">Sign out</button>
+  </header>
+
+  <section class="paper" aria-live="polite">
+    <div id="list" class="sheet-list"></div>
+    <div id="empty" class="empty" hidden>
+      <h2>No notes yet</h2>
+      <p>Start a sheet. Write Markdown. Share a link when you’re ready.</p>
+      <button id="empty-new" class="primary" type="button">Create first note</button>
+    </div>
+  </section>
+
+  <script>
+    const who = document.getElementById("who")!;
+    const list = document.getElementById("list")!;
+    const empty = document.getElementById("empty")!;
+    const q = document.getElementById("q") as HTMLInputElement;
+
+    function escapeHtml(s: string) {
+      return s.replace(/[&<>"']/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
+      );
+    }
+
+    async function requireAuth() {
+      const res = await fetch("/api/auth/me", { credentials: "include" });
+      if (!res.ok) {
+        location.href = "/login";
+        return null;
+      }
+      const data = await res.json();
+      who.textContent = data.user.name || data.user.email;
+      return data.user;
+    }
+
+    async function loadNotes() {
+      const url = q.value.trim()
+        ? `/api/notes?q=${encodeURIComponent(q.value.trim())}`
+        : "/api/notes";
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) {
+        location.href = "/login";
+        return;
+      }
+      const data = await res.json();
+      list.innerHTML = "";
+      const has = data.notes.length > 0;
+      empty.hidden = has;
+      list.hidden = !has;
+      for (const n of data.notes) {
+        const a = document.createElement("a");
+        a.className = "sheet";
+        a.href = `/note/${n.id}`;
+        const vis = String(n.visibility).toLowerCase();
+        a.innerHTML = `
+          <div class="row wrap">
+            <span class="sheet-title grow">${escapeHtml(n.title)}</span>
+            <span class="badge ${vis}">${escapeHtml(n.visibility)}</span>
+          </div>
+          <div class="sheet-meta">
+            <span>Updated ${new Date(n.updatedAt).toLocaleString()}</span>
+          </div>`;
+        list.appendChild(a);
+      }
+    }
+
+    async function createNote() {
+      const title = prompt("Title", "Untitled");
+      if (!title?.trim()) return;
+      const res = await fetch("/api/notes", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: title.trim(), body: "" }),
+      });
+      if (!res.ok) {
+        alert("Could not create note.");
+        return;
+      }
+      const data = await res.json();
+      location.href = `/note/${data.note.id}`;
+    }
+
+    document.getElementById("new")!.addEventListener("click", createNote);
+    document.getElementById("empty-new")!.addEventListener("click", createNote);
+    document.getElementById("logout")!.addEventListener("click", async () => {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      location.href = "/login";
+    });
+
+    let t: number | undefined;
+    q.addEventListener("input", () => {
+      clearTimeout(t);
+      t = window.setTimeout(loadNotes, 180);
+    });
+
+    await requireAuth();
+    await loadNotes();
+  </script>
+</Base>

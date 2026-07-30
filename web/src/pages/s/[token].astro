@@ -1,0 +1,30 @@
+---
+import Base from "../../layouts/Base.astro";
+const { token } = Astro.params;
+---
+<Base title="Shared note · Notes">
+  <main class="share-read">
+    <p class="kicker">Shared note</p>
+    <h1 id="title">Loading…</h1>
+    <article id="body" class="paper paper-pad share-body">…</article>
+  </main>
+  <script define:vars={{ token }}>
+    const title = document.getElementById("title");
+    const body = document.getElementById("body");
+    try {
+      const res = await fetch(`/api/s/${token}`);
+      if (!res.ok) {
+        title.textContent = "Link unavailable";
+        body.textContent = "This share link is invalid or was revoked.";
+      } else {
+        const data = await res.json();
+        title.textContent = data.note.title;
+        body.innerHTML = data.note.html;
+        document.title = `${data.note.title} · Notes`;
+      }
+    } catch {
+      title.textContent = "Could not load";
+      body.textContent = "Network error.";
+    }
+  </script>
+</Base>

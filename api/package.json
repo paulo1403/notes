@@ -1,0 +1,20 @@
+{
+  "name": "api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "echo 'api is bun-native'"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.850.0",
+    "@aws-sdk/s3-request-presigner": "^3.850.0",
+    "@elysiajs/cors": "^1.3.3",
+    "@elysiajs/static": "^1.3.0",
+    "@prisma/client": "^6.19.0",
+    "elysia": "^1.3.21",
+    "marked": "^16.1.1"
+  }
+}
