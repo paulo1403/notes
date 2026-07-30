@@ -19,7 +19,7 @@ import lock from "lucide/dist/esm/icons/lock";
 import clock from "lucide/dist/esm/icons/clock";
 import eye from "lucide/dist/esm/icons/eye";
 import eyeOff from "lucide/dist/esm/icons/eye-off";
-import barChart from "lucide/dist/esm/icons/bar-chart";
+import chartBar from "lucide/dist/esm/icons/chart-bar";
 import refreshCw from "lucide/dist/esm/icons/refresh-cw";
 
 const icons = {
@@ -27,7 +27,7 @@ const icons = {
   folder, moon, sun, plus, menu, x, share, download,
   "trash-2": trash2, search, "chevron-down": chevronDown, "chevron-right": chevronRight,
   "file-text": fileText, tag, copy, lock, clock, eye, "eye-off": eyeOff,
-  "bar-chart": barChart, "refresh": refreshCw,
+  "bar-chart": chartBar, "refresh": refreshCw,
 } as const;
 
 export type IconName = keyof typeof icons;
