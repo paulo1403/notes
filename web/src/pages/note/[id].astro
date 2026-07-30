@@ -1,5 +1,8 @@
 ---
 import Base from "../../layouts/Base.astro";
+export async function getStaticPaths() {
+  return [{ params: { id: "_dummy" } }];
+}
 const { id } = Astro.params;
 ---
 <Base title="Edit · Notes">

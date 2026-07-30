@@ -1,5 +1,8 @@
 import { cors } from "@elysiajs/cors";
+import { staticPlugin } from "@elysiajs/static";
 import { Elysia, t } from "elysia";
+import { readFileSync } from "fs";
+import { join } from "path";
 import { marked } from "marked";
 import {
   clearSessionCookie,
@@ -17,6 +20,18 @@ import { deleteObject, ensureBucket, presignGet, putObject } from "./s3";
 
 const port = Number(process.env.PORT ?? 3102);
 const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:4321";
+const isProd = process.env.NODE_ENV === "production";
+const webDist = isProd ? join(import.meta.dir!, "../../web/dist") : undefined;
+
+let fallbackHtml = "";
+if (isProd && webDist) {
+  try {
+    fallbackHtml = readFileSync(join(webDist, "index.html"), "utf-8");
+    console.log(`serving static from ${webDist}`);
+  } catch {
+    console.warn("web/dist not found — API only");
+  }
+}
 
 async function seedAdmin() {
   const email = process.env.ADMIN_EMAIL ?? "paulo@local";
@@ -40,6 +55,11 @@ const app = new Elysia()
       origin: webOrigin,
       credentials: true,
     }),
+  )
+  .use(
+    isProd && webDist
+      ? staticPlugin({ prefix: "/", assets: webDist, noCache: false })
+      : (a: Elysia) => a,
   )
   .derive(async ({ request }) => {
     const token = readSessionCookie(request.headers.get("cookie"));
@@ -318,6 +338,19 @@ const app = new Elysia()
     } catch (e) {
       console.warn("s3 unavailable (attachments disabled until MinIO is up):", e);
     }
+  })
+  // SPA fallback: serve index.html for non-API GET routes
+  .all("/*", ({ request, set }) => {
+    if (request.method !== "GET" || request.url.includes("/api/")) {
+      set.status = 404;
+      return { error: "not found" };
+    }
+    if (fallbackHtml) {
+      set.headers["content-type"] = "text/html; charset=utf-8";
+      return fallbackHtml;
+    }
+    set.status = 404;
+    return { error: "not found" };
   })
   .listen(port);
 
