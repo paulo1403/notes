@@ -6,9 +6,10 @@ const { title = "Notes" } = Astro.props;
 <html lang="en" class="">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="Markdown notes with auth, share links, and S3 attachments" />
-    <meta name="theme-color" content="#0e0f14" />
+    <meta name="theme-color" content="#0e0f14" media="(prefers-color-scheme:dark)" />
+    <meta name="theme-color" content="#fafbfc" media="(prefers-color-scheme:light)" />
     <title>{title}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,13 +17,11 @@ const { title = "Notes" } = Astro.props;
   </head>
   <body>
     <slot />
-    <script>
+    <script type="module">
       const stored = localStorage.getItem("notes-theme");
-      if (stored === "light") {
-        document.documentElement.className = "light";
-      } else if (stored === "dark") {
-        document.documentElement.className = "";
-      }
+      if (stored === "light") document.documentElement.className = "light";
+      else if (stored === "dark") document.documentElement.className = "";
     </script>
+    <script type="module" src="/lucide.js"></script>
   </body>
 </html>

@@ -2,144 +2,159 @@
 import Base from "../layouts/Base.astro";
 ---
 <Base title="Notes">
+  <div id="overlay" class="sidebar-overlay"></div>
   <div class="app-layout">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-head">
+        <button id="close-sidebar" class="ghost mobile-toggle" aria-label="Close sidebar"><span class="lucide" data-icon="x"></span></button>
         <h1>Notes</h1>
-        <button id="theme-btn" style="font-size:0.9rem;" title="Toggle theme">◐</button>
-        <button id="new" title="New note">+</button>
+        <button id="theme-btn" class="ghost" title="Toggle theme"><span class="lucide" data-icon="moon"></span></button>
+        <button id="new" title="New note"><span class="lucide" data-icon="plus"></span></button>
       </div>
-      <div class="sidebar-search">
-        <input id="q" type="search" placeholder="Search" aria-label="Search" />
+      <div class="sidebar-search" style="display:flex;align-items:center;gap:0.35rem;">
+        <span class="lucide" data-icon="search" style="color:var(--muted);flex-shrink:0;width:14px;height:14px;"></span>
+        <input id="q" type="search" placeholder="Search" aria-label="Search" style="flex:1;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-sm);padding:0.35rem 0.5rem;font-size:0.8125rem;" />
       </div>
       <nav class="sidebar-nav" id="list" role="listbox" aria-label="Notes">
-        <div class="empty-state" style="justify-content:start;padding:1rem 0.75rem;" hidden id="empty">
+        <div class="empty-state" hidden id="empty">
           <p style="margin:0;font-size:0.8125rem;">No notes yet.</p>
         </div>
       </nav>
     </aside>
     <main class="main-area">
       <div class="empty-state" id="main-empty">
+        <button id="menu-btn" class="ghost mobile-toggle" aria-label="Open sidebar" style="align-self:flex-start;"><span class="lucide" data-icon="menu"></span></button>
         <h2>Select a note</h2>
         <p>Pick one from the sidebar or create a new one.</p>
+        <button class="primary" id="empty-new"><span class="lucide" data-icon="plus"></span> New note</button>
       </div>
     </main>
   </div>
-  <div id="folder-prompt" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100;align-items:center;justify-content:center;">
-    <div class="sidebar" style="position:static;width:320px;border-radius:var(--radius);">
+  <div class="dialog-overlay" id="folder-dialog">
+    <div class="dialog-panel">
       <div class="sidebar-head"><h1>Choose folder</h1></div>
-      <div class="sidebar-nav" id="folder-list" style="padding:0.5rem;"></div>
+      <div class="sidebar-nav" id="folder-list" style="padding:0.25rem 0;"></div>
     </div>
   </div>
   <script>
+    const sidebar = document.getElementById("sidebar");
+    const overlay = document.getElementById("overlay");
     const list = document.getElementById("list");
     const empty = document.getElementById("empty");
-    const mainEmpty = document.getElementById("main-empty");
     const q = document.getElementById("q");
-    const themeBtn = document.getElementById("theme-btn");
 
-    themeBtn.addEventListener("click", () => {
+    function openSidebar() { sidebar.classList.add("open"); overlay.classList.add("open"); }
+    function closeSidebar() { sidebar.classList.remove("open"); overlay.classList.remove("open"); }
+
+    document.getElementById("menu-btn")?.addEventListener("click", openSidebar);
+    document.getElementById("close-sidebar")?.addEventListener("click", closeSidebar);
+    overlay.addEventListener("click", closeSidebar);
+
+    function themeToggle() {
       const isLight = document.documentElement.className === "light";
       document.documentElement.className = isLight ? "" : "light";
       localStorage.setItem("notes-theme", isLight ? "dark" : "light");
-    });
+    }
+    document.getElementById("theme-btn").addEventListener("click", themeToggle);
 
-    function escapeHtml(s) {
-      return (s || "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" })[c]);
+    function escapeHtml(s) { return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]); }
+
+    async function auth() {
+      const r = await fetch("/api/auth/me", { credentials: "include" });
+      if (!r.ok) location.href = "/login";
     }
 
-    async function requireAuth() {
-      const res = await fetch("/api/auth/me", { credentials: "include" });
-      if (!res.ok) location.href = "/login";
-    }
-
-    let notes = [];
-    let folders = [];
+    let notes = [], folders = [];
 
     async function loadFolders() {
-      const res = await fetch("/api/folders", { credentials: "include" });
-      if (res.ok) folders = (await res.json()).folders || [];
+      const r = await fetch("/api/folders", { credentials: "include" });
+      if (r.ok) folders = (await r.json()).folders || [];
     }
 
     async function loadNotes() {
       const url = q.value.trim() ? `/api/notes?q=${encodeURIComponent(q.value.trim())}` : "/api/notes";
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) return location.href = "/login";
-      const data = await res.json();
-      notes = data.notes;
-      renderSidebar();
+      const r = await fetch(url, { credentials: "include" });
+      if (!r.ok) return location.href = "/login";
+      const d = await r.json();
+      notes = d.notes;
+      render();
     }
 
-    function renderSidebar() {
+    function render() {
       list.innerHTML = "";
       if (!notes.length) { empty.hidden = false; return; }
       empty.hidden = true;
-
-      const grouped = new Map();
+      const g = new Map();
       for (const n of notes) {
         const f = n.folder || "(no folder)";
-        if (!grouped.has(f)) grouped.set(f, []);
-        grouped.get(f).push(n);
+        if (!g.has(f)) g.set(f, []);
+        g.get(f).push(n);
       }
-
-      let i = 0;
-      for (const [folder, items] of grouped) {
-        const header = document.createElement("div");
-        header.style.cssText = "padding:0.5rem 0.85rem 0.25rem;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);font-weight:600;";
-        header.textContent = folder;
-        list.appendChild(header);
+      for (const [folder, items] of g) {
+        const h = document.createElement("div");
+        h.className = "folder-header";
+        h.innerHTML = `<span class="lucide" data-icon="chevron-down"></span>${escapeHtml(folder)} <span style="margin-left:auto;color:var(--muted);font-weight:400;">${items.length}</span>`;
+        h.dataset.expanded = "1";
+        h.addEventListener("click", () => {
+          const next = h.nextElementSibling;
+          if (!next) return;
+          const exp = h.dataset.expanded === "1";
+          h.dataset.expanded = exp ? "0" : "1";
+          next.style.display = exp ? "none" : "";
+          h.querySelector("[data-icon]").setAttribute("data-icon", exp ? "chevron-right" : "chevron-down");
+        });
+        list.appendChild(h);
+        const c = document.createElement("div");
         for (const n of items) {
           const a = document.createElement("a");
-          a.className = "nav-item" + (i === 0 ? " active" : "");
+          a.className = "nav-item";
           a.href = `/note/${n.id}`;
-          const vis = String(n.visibility).toLowerCase();
-          a.innerHTML = `<span class="grow">${escapeHtml(n.title)}</span>${n.visibility !== "PRIVATE" ? `<span class="badge ${vis}">${escapeHtml(n.visibility)}</span>` : ""}`;
-          a.addEventListener("click", (e) => {
-            e.preventDefault();
-            location.href = `/note/${n.id}`;
-          });
-          list.appendChild(a);
-          i++;
+          const v = String(n.visibility).toLowerCase();
+          a.innerHTML = `<span class="lucide" data-icon="file-text"></span><span class="grow">${escapeHtml(n.title)}</span>${n.visibility!=="PRIVATE"?`<span class="badge ${v}">${escapeHtml(n.visibility)}</span>`:""}`;
+          a.addEventListener("click", (e) => { e.preventDefault(); closeSidebar(); location.href = `/note/${n.id}`; });
+          c.appendChild(a);
         }
+        list.appendChild(c);
       }
     }
 
     async function createNote(folder) {
       const t = prompt("Title", "Untitled");
       if (!t?.trim()) return;
-      const res = await fetch("/api/notes", {
-        method: "POST",
-        credentials: "include",
+      const r = await fetch("/api/notes", {
+        method: "POST", credentials: "include",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ title: t.trim(), body: "", folder: folder || null }),
       });
-      if (!res.ok) return alert("Create failed");
-      const data = await res.json();
-      location.href = `/note/${data.note.id}`;
+      if (!r.ok) return alert("Create failed");
+      const d = await r.json();
+      closeSidebar();
+      location.href = `/note/${d.note.id}`;
     }
 
-    document.getElementById("new").addEventListener("click", async () => {
-      await loadFolders();
-      const promptDiv = document.getElementById("folder-prompt");
-      const folderList = document.getElementById("folder-list");
-      folderList.innerHTML = `<div class="nav-item" id="folder-none" style="cursor:pointer;"><span class="grow">No folder</span></div>`;
+    function showFolderDialog() {
+      const d = document.getElementById("folder-dialog");
+      const fl = document.getElementById("folder-list");
+      fl.innerHTML = `<div class="nav-item" id="fd-none" style="cursor:pointer;"><span class="grow">No folder</span></div>`;
       for (const f of folders) {
         const div = document.createElement("div");
-        div.className = "nav-item";
-        div.style.cursor = "pointer";
-        div.innerHTML = `<span class="grow">${escapeHtml(f.name)}</span><span style="color:var(--muted);font-size:0.75rem;">${f.count}</span>`;
-        div.addEventListener("click", () => { promptDiv.style.display = "none"; createNote(f.name); });
-        folderList.appendChild(div);
+        div.className = "nav-item"; div.style.cursor = "pointer";
+        div.innerHTML = `<span class="lucide" data-icon="folder"></span><span class="grow">${escapeHtml(f.name)}</span><span style="color:var(--muted);font-size:0.75rem;">${f.count}</span>`;
+        div.addEventListener("click", () => { d.classList.remove("open"); createNote(f.name); });
+        fl.appendChild(div);
       }
-      document.getElementById("folder-none").addEventListener("click", () => { promptDiv.style.display = "none"; createNote(""); });
-      promptDiv.style.display = "flex";
-      promptDiv.addEventListener("click", (e) => { if (e.target === promptDiv) promptDiv.style.display = "none"; });
-    });
+      document.getElementById("fd-none").addEventListener("click", () => { d.classList.remove("open"); createNote(""); });
+      d.classList.add("open");
+      d.addEventListener("click", (e) => { if (e.target === d) d.classList.remove("open"); });
+    }
+
+    document.getElementById("new").addEventListener("click", async () => { await loadFolders(); showFolderDialog(); });
+    document.getElementById("empty-new")?.addEventListener("click", async () => { await loadFolders(); showFolderDialog(); });
 
     let timer;
     q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(loadNotes, 150); });
 
-    await requireAuth();
+    await auth();
     await loadFolders();
     await loadNotes();
   </script>

@@ -6,26 +6,15 @@ export async function getStaticPaths() {
 ---
 <Base title="Edit · Notes">
   <div class="app-layout">
-    <aside class="sidebar">
-      <div class="sidebar-head">
-        <h1><a href="/app" style="color:inherit;">Notes</a></h1>
-        <button id="theme-btn" style="font-size:0.9rem;">◐</button>
-        <button id="back">←</button>
-      </div>
-      <div class="sidebar-nav" style="padding:0;">
-        <div class="nav-item" style="justify-content:center;">
-          <span id="status" class="status">Loading…</span>
-        </div>
-      </div>
-    </aside>
     <main class="main-area">
       <div class="editor-top">
-        <span class="status" id="status-bar"></span>
-        <button id="folder-btn" class="ghost" style="font-size:0.8125rem;color:var(--muted);">📁 <span id="folder-label">none</span></button>
-        <button id="share">Share</button>
-        <button id="export">Export</button>
+        <button id="back" class="ghost"><span class="lucide" data-icon="menu"></span></button>
+        <span class="status" id="status-bar">Loading…</span>
+        <button id="folder-btn" class="ghost" style="font-size:0.8125rem;color:var(--muted);"><span class="lucide" data-icon="folder"></span> <span id="folder-label">none</span></button>
+        <button id="share"><span class="lucide" data-icon="share"></span></button>
+        <button id="export"><span class="lucide" data-icon="download"></span></button>
         <button class="primary" id="save">Save</button>
-        <button class="danger" id="del">Delete</button>
+        <button class="danger" id="del"><span class="lucide" data-icon="trash-2"></span></button>
       </div>
       <div class="editor-scroll">
         <input id="title" class="title-field" placeholder="Note title" aria-label="Title" />
@@ -38,7 +27,7 @@ export async function getStaticPaths() {
         <section class="attach-area" aria-label="Attachments">
           <div class="attach-head">
             <strong>Attachments</strong>
-            <input id="file" type="file" aria-label="Choose" style="flex:1;font-size:0.8125rem;" />
+            <input class="file-input" id="file" type="file" aria-label="Choose" />
             <button id="upload">Upload</button>
           </div>
           <div id="files"></div>
@@ -47,70 +36,40 @@ export async function getStaticPaths() {
     </main>
   </div>
   <script>
-    // Extract ID from pathname: /note/<id>
     const noteId = location.pathname.split("/").pop();
+    if (!noteId || noteId === "_dummy") throw new Error("no id");
 
-    if (!noteId || noteId === "_dummy") {
-      document.getElementById("status-bar").textContent = "Invalid note";
-      throw new Error("no note id");
-    }
-
-    const themeBtn = document.getElementById("theme-btn");
-    themeBtn.addEventListener("click", () => {
-      const isLight = document.documentElement.className === "light";
-      document.documentElement.className = isLight ? "" : "light";
-      localStorage.setItem("notes-theme", isLight ? "dark" : "light");
-    });
+    document.getElementById("back")?.addEventListener("click", () => location.href = "/app");
 
     const titleEl = document.getElementById("title");
     const bodyEl = document.getElementById("body");
     const preview = document.getElementById("preview");
     const status = document.getElementById("status-bar");
     const files = document.getElementById("files");
-    let note = null;
-    let dirty = false;
+    let note = null, dirty = false;
 
-    function escapeHtml(s) {
-      return (s || "").replace(/[&<>"]/g, (c) =>
-        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-    }
+    function escapeHtml(s) { return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]); }
 
     function mdToHtml(t) {
       return escapeHtml(t)
-        .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-        .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-        .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-        .replace(/\*(.+?)\*/g, "<em>$1</em>")
-        .replace(/`([^`]+)`/g, "<code>$1</code>")
-        .replace(/^- (.+)$/gm, "<li>$1</li>")
-        .replace(/\n\n/g, "</p><p>")
-        .replace(/^([^<].*)$/gm, (m) => m.startsWith("<") ? m : `<p>${m}</p>`);
+        .replace(/^### (.+)$/gm,"<h3>$1</h3>").replace(/^## (.+)$/gm,"<h2>$1</h2>").replace(/^# (.+)$/gm,"<h1>$1</h1>")
+        .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\*(.+?)\*/g,"<em>$1</em>").replace(/`([^`]+)`/g,"<code>$1</code>")
+        .replace(/^- (.+)$/gm,"<li>$1</li>").replace(/\n\n/g,"</p><p>").replace(/^([^<].*)$/gm,m=>m.startsWith("<")?m:`<p>${m}</p>`);
     }
 
     function render() {
-      preview.innerHTML = bodyEl.value.trim()
-        ? mdToHtml(bodyEl.value)
-        : '<span style="color:var(--muted);">Preview</span>';
+      preview.innerHTML = bodyEl.value.trim() ? mdToHtml(bodyEl.value) : '<span style="color:var(--muted);">Preview</span>';
     }
 
-    function setStatus(t, kind) {
-      const el = document.getElementById("status-bar");
-      el.textContent = t;
-      el.className = "status" + (kind ? ` ${kind}` : "");
-    }
-
-    function markDirty() {
-      if (!dirty) { dirty = true; setStatus("Unsaved"); }
-    }
+    function setStatus(t, k) { status.textContent = t; status.className = "status" + (k ? ` ${k}` : ""); }
 
     async function load() {
       const me = await fetch("/api/auth/me", { credentials: "include" });
       if (!me.ok) return location.href = "/login";
-      const res = await fetch(`/api/notes/${noteId}`, { credentials: "include" });
-      if (!res.ok) { setStatus("Not found", "err"); return; }
-      const data = await res.json();
-      note = data.note;
+      const r = await fetch(`/api/notes/${noteId}`, { credentials: "include" });
+      if (!r.ok) { setStatus("Not found","err"); return; }
+      const d = await r.json();
+      note = d.note;
       titleEl.value = note.title;
       bodyEl.value = note.body;
       document.getElementById("folder-label").textContent = note.folder || "none";
@@ -119,8 +78,7 @@ export async function getStaticPaths() {
       render();
       files.innerHTML = "";
       for (const a of note.attachments || []) {
-        const row = document.createElement("div");
-        row.className = "attach-row";
+        const row = document.createElement("div"); row.className = "attach-row";
         row.innerHTML = `<span class="grow">${escapeHtml(a.filename)}</span><button data-id="${a.id}">Open</button>`;
         row.querySelector("button").onclick = async () => {
           const u = await fetch(`/api/attachments/${a.id}/url`, { credentials: "include" });
@@ -129,102 +87,72 @@ export async function getStaticPaths() {
         };
         files.appendChild(row);
       }
-      if (!(note.attachments || []).length) {
-        files.innerHTML = '<p style="color:var(--muted);font-size:0.8125rem;margin:0;">No attachments.</p>';
-      }
+      if (!(note.attachments||[]).length) files.innerHTML = '<span style="color:var(--muted);font-size:0.8125rem;">No attachments.</span>';
     }
 
     async function save() {
       setStatus("Saving…");
-      const res = await fetch(`/api/notes/${noteId}`, {
-        method: "PATCH",
-        credentials: "include",
+      const r = await fetch(`/api/notes/${noteId}`, {
+        method: "PATCH", credentials: "include",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ title: titleEl.value, body: bodyEl.value }),
       });
-      if (!res.ok) { setStatus("Save failed", "err"); return; }
-      dirty = false;
-      setStatus("Saved", "ok");
+      if (!r.ok) { setStatus("Save failed","err"); return; }
+      dirty = false; setStatus("Saved","ok");
     }
 
-    document.getElementById("back").onclick = () => {
-      if (dirty && !confirm("Discard changes?")) return;
-      location.href = "/app";
-    };
-
     document.getElementById("save").onclick = save;
-
     document.getElementById("del").onclick = async () => {
       if (!confirm("Delete permanently?")) return;
       await fetch(`/api/notes/${noteId}`, { method: "DELETE", credentials: "include" });
       location.href = "/app";
     };
-
-    document.getElementById("export").onclick = () => {
-      window.open(`/api/notes/${noteId}/export`, "_blank");
-    };
-
+    document.getElementById("export").onclick = () => window.open(`/api/notes/${noteId}/export`, "_blank");
     document.getElementById("folder-btn").onclick = async () => {
-      const f = prompt("Folder name (empty = no folder)", note?.folder || "");
+      const f = prompt("Folder name", note?.folder || "");
       if (f === null) return;
-      const val = f.trim() || null;
+      const v = f.trim() || null;
       await fetch(`/api/notes/${noteId}`, {
-        method: "PATCH",
-        credentials: "include",
+        method: "PATCH", credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ folder: val }),
+        body: JSON.stringify({ folder: v }),
       });
-      document.getElementById("folder-label").textContent = val || "none";
+      document.getElementById("folder-label").textContent = v || "none";
     };
-
     document.getElementById("share").onclick = async () => {
       const mode = prompt("Visibility: PRIVATE / LINK / PUBLIC", note?.visibility || "LINK");
       if (!mode) return;
-      const expiresIn = mode === "LINK" ? parseInt(prompt("Expire in seconds (blank = never)", "") || "0") : 0;
+      const expiresIn = mode === "LINK" ? parseInt(prompt("Expire in seconds (blank=never)","")||"0") : 0;
       const body = { visibility: mode.toUpperCase() };
       if (expiresIn > 0) body.expiresIn = expiresIn;
-      const res = await fetch(`/api/notes/${noteId}/share`, {
-        method: "POST",
-        credentials: "include",
+      const r = await fetch(`/api/notes/${noteId}/share`, {
+        method: "POST", credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ visibility: mode.toUpperCase() }),
+        body: JSON.stringify(body),
       });
-      if (!res.ok) { setStatus("Share failed", "err"); return; }
-      const d = await res.json();
+      if (!r.ok) { setStatus("Share failed","err"); return; }
+      const d = await r.json();
       note = d.note;
       setStatus(note.visibility + (note.shareToken ? ` · s/${note.shareToken}` : ""), "ok");
       if (note.shareToken) {
         const url = `${location.origin}/s/${note.shareToken}`;
-        await navigator.clipboard.writeText(url).catch(() => {});
+        await navigator.clipboard.writeText(url).catch(()=>{});
         alert(`Link copied:\n${url}`);
       }
     };
-
     document.getElementById("upload").onclick = async () => {
       const input = document.getElementById("file");
       if (!input.files?.length) return alert("Pick a file");
-      const fd = new FormData();
-      fd.append("file", input.files[0]);
+      const fd = new FormData(); fd.append("file", input.files[0]);
       setStatus("Uploading…");
-      const res = await fetch(`/api/notes/${noteId}/attachments`, {
-        method: "POST",
-        credentials: "include",
-        body: fd,
-      });
-      setStatus(res.ok ? "Uploaded" : "Upload failed", res.ok ? "ok" : "err");
-      if (res.ok) load();
+      const r = await fetch(`/api/notes/${noteId}/attachments`, { method: "POST", credentials: "include", body: fd });
+      setStatus(r.ok ? "Uploaded" : "Upload failed", r.ok ? "ok" : "err");
+      if (r.ok) load();
     };
 
-    titleEl.addEventListener("input", markDirty);
-    bodyEl.addEventListener("input", () => { markDirty(); render(); });
-
-    window.addEventListener("keydown", (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        save();
-      }
-    });
-
+    titleEl.addEventListener("input", () => { if (!dirty) { dirty = true; setStatus("Unsaved"); } });
+    bodyEl.addEventListener("input", () => { if (!dirty) { dirty = true; setStatus("Unsaved"); } render(); });
+    window.addEventListener("keydown", (e) => { if ((e.metaKey||e.ctrlKey) && e.key === "s") { e.preventDefault(); save(); } });
     load();
   </script>
 </Base>
