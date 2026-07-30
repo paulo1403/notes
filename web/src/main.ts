@@ -185,15 +185,25 @@ function renderEditor() {
     }
   } else ah = '<span style="color:var(--muted);font-size:0.8125rem">No attachments.</span>';
   main.innerHTML = `
-    <div class="editor-top">
-      <button class="ghost mobile-only" id="sb-open" aria-label="Open sidebar" title="Open sidebar"><i data-lucide="menu" style="width:18px;height:18px"></i></button>
-      <span class="status" id="n-status">${dirty ? "Unsaved" : esc(n.visibility) + (n.shareToken ? " · s/"+n.shareToken : "")}</span>
-      <button class="ghost" id="n-folder" style="font-size:.8125rem;color:var(--muted)" title="Change folder"><i data-lucide="folder" style="width:14px;height:14px"></i> <span id="n-folder-label">${esc(n.folder||"none")}</span></button>
-      <button id="n-tags" class="ghost" style="font-size:.8125rem;color:var(--muted)" title="Edit tags"><i data-lucide="tag" style="width:14px;height:14px"></i> <span id="n-tag-label">${(n.tags||[]).length||"0"} tags</span></button>
-      <button id="n-share" title="Share note"><i data-lucide="share" style="width:16px;height:16px"></i></button>
-      <button id="n-export" title="Export note"><i data-lucide="download" style="width:16px;height:16px"></i></button>
-      <button class="primary" id="n-save" title="Save changes">Save</button>
-      <button class="danger" id="n-del" aria-label="Delete note" title="Delete note"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button>
+    <div class="editor-top" role="toolbar" aria-label="Note actions">
+      <button class="ghost mobile-only" id="sb-open" aria-label="Open sidebar" title="Open sidebar">${icon("menu",18)}</button>
+      <button class="status" id="n-status" aria-label="Note visibility, click to change" title="Change visibility">${icon("eye-off",12)} ${dirty ? "Unsaved" : esc(n.visibility).toLowerCase()}</button>
+      <div class="meta-group">
+        <button class="ghost btn-meta" id="n-folder" title="Change folder">${icon("folder",14)} <span id="n-folder-label">${esc(n.folder||"none")}</span></button>
+        <button class="ghost btn-meta" id="n-tags" aria-label="Edit tags">${icon("tag",14)} <span id="n-tag-label">${(n.tags||[]).length||"0"} tags</span></button>
+      </div>
+      <div class="spacer"></div>
+      <div class="action-group">
+        <button id="n-share" aria-label="Share note" title="Share note">${icon("share",16)}</button>
+        <button id="n-export" aria-label="Export note" title="Export note">${icon("download",16)}</button>
+        <button class="primary" id="n-save" title="Save changes">Save</button>
+        <div class="overflow-wrap">
+          <button class="ghost" id="n-more" aria-label="More options" aria-haspopup="true" title="More">${icon("menu",16)}</button>
+          <div class="overflow-menu" id="n-more-menu" style="display:none">
+            <button class="danger" id="n-del" aria-label="Delete note" title="Delete note">${icon("trash-2",14)} Delete note</button>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="editor-scroll">
       <input id="n-title" class="title-field" value="${esc(tv)}" placeholder="Note title">
@@ -237,6 +247,15 @@ function renderEditor() {
   });
   bind("#n-save","click", saveAction);
   bind("#n-del","click", delAction);
+  bind("#n-more","click", () => {
+    const m = document.getElementById("n-more-menu");
+    if (m) m.style.display = m.style.display === "none" ? "" : "none";
+  });
+  document.addEventListener("click", (e) => {
+    const m = document.getElementById("n-more-menu");
+    if (m && m.style.display !== "none" && !(e.target as HTMLElement).closest("#n-more") && !(e.target as HTMLElement).closest("#n-more-menu")) m.style.display = "none";
+  });
+  bind("#n-status","click", shareAction);
   bind("#n-export","click", async () => {
     if (!currentNoteId) return;
     const fmt = await showInput("Format", { value: "md", placeholder: "md or html" });
